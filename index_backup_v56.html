@@ -1,0 +1,1949 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#1f4e78" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="清掃ロボット検証" />
+  <title>清掃ロボット検証ダッシュボード</title>
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --card: #ffffff;
+      --ink: #1f2937;
+      --sub: #6b7280;
+      --line: #dbe3ee;
+      --primary: #1f4e78;
+      --accent: #d97706;
+      --good: #16a34a;
+      --warn: #d97706;
+      --bad: #dc2626;
+      --blue-soft: #e8f1f8;
+      --yellow-soft: #fff7df;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Yu Gothic", sans-serif; background: var(--bg); color: var(--ink); }
+    .header { background: linear-gradient(135deg, var(--primary), #2f6c9f); color: white; padding: 24px 28px; }
+    .header-inner { max-width: 1400px; margin: 0 auto; display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
+    .header-copy { min-width: 0; flex: 1 1 auto; }
+    .header h1 { margin: 0 0 8px; font-size: 28px; }
+    .header p { margin: 0; opacity: 0.95; }
+    .wrap { max-width: 1400px; margin: 0 auto; padding: 16px 20px 20px; }
+    .tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+    .header .tabs { flex: 0 0 auto; margin-bottom: 0; padding: 8px; border-radius: 14px; background: rgba(255,255,255,0.14); border: 1px solid rgba(255,255,255,0.18); }
+    .tab-btn { border: 1px solid var(--line); background: white; color: var(--ink); padding: 10px 14px; border-radius: 10px; cursor: pointer; font-weight: 700; }
+    .header .tab-btn { background: rgba(255,255,255,0.96); box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08); }
+    .tab-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+    .header .tab-btn.active { border-color: rgba(255,255,255,0.2); }
+    .tab { display: none; }
+    .tab.active { display: block; }
+    .grid { display: grid; gap: 16px; }
+    .grid-2 { grid-template-columns: 1.2fr 0.8fr; }
+    .grid-3 { grid-template-columns: repeat(3, 1fr); }
+    .grid-4 { grid-template-columns: repeat(4, 1fr); }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; box-shadow: 0 2px 10px rgba(31,78,120,0.04); }
+    .card h2, .card h3 { margin: 0 0 12px; }
+    .muted { color: var(--sub); }
+    .small { font-size: 12px; }
+    .badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; border: 1px solid transparent; }
+    .b-good { background: #e8f7ed; color: var(--good); }
+    .b-warn { background: #fff4e5; color: var(--warn); }
+    .b-bad { background: #feecec; color: var(--bad); border-color: #f8b4b4; }
+    .kpi { padding: 14px; border-radius: 12px; border: 1px solid var(--line); background: white; }
+    .kpi .label { color: var(--sub); font-size: 12px; margin-bottom: 6px; }
+    .kpi .value { font-size: 28px; font-weight: 800; }
+    .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    input[type="file"], input[type="month"], input[type="text"], input[type="number"], select, textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: white; }
+    textarea { min-height: 80px; }
+    button { border: none; border-radius: 10px; padding: 10px 14px; cursor: pointer; font-weight: 700; }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-secondary { background: #eef4fa; color: var(--primary); }
+    .btn-danger { background: #b91c1c; color: white; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border-bottom: 1px solid var(--line); padding: 10px 8px; text-align: left; vertical-align: top; font-size: 14px; }
+    th { background: #f8fbfe; color: var(--primary); position: sticky; top: 0; }
+    .table-wrap { max-height: 520px; overflow: auto; border: 1px solid var(--line); border-radius: 12px; }
+    .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+    .dot-good { background: var(--good); }
+    .dot-warn { background: var(--warn); }
+    .dot-bad { background: var(--bad); }
+    .pill { display: inline-block; padding: 3px 8px; border-radius: 999px; background: var(--blue-soft); color: var(--primary); font-size: 12px; font-weight: 700; }
+    .section-title { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
+    .store-card .section-title { align-items: flex-start; }
+    .note { background: var(--yellow-soft); border: 1px solid #f4d28c; border-radius: 12px; padding: 12px 14px; }
+    .store-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 26px; padding: 6px; background: #ffffff; }
+    .store-card { position: relative; border: 1px solid #25b7c1; border-radius: 0; background: #ffffff; padding: 13px 15px 15px; min-height: 220px; display: flex; flex-direction: column; gap: 11px; box-shadow: 10px 14px 16px rgba(15, 23, 42, 0.24); transition: box-shadow 0.18s ease, transform 0.18s ease; overflow: hidden; }
+    .store-card::after { content: ""; position: absolute; inset: 0; border-radius: 0; pointer-events: none; box-shadow: inset 1px 1px 0 rgba(255,255,255,0.98), inset -1px -1px 0 rgba(214,224,232,0.55); }
+    .store-card.aim-tone { background: #ffffff; border-color: #25b7c1; border-top: 2px solid #25b7c1; box-shadow: 10px 14px 16px rgba(15, 23, 42, 0.24); }
+    .store-card.dfa-phantas-tone { background: #ffffff; border-color: #25b7c1; border-top: 2px solid #25b7c1; box-shadow: 10px 14px 16px rgba(15, 23, 42, 0.24); }
+    .store-card.dfa-c40-tone { background: #ffffff; border-color: #25b7c1; border-top: 2px solid #25b7c1; box-shadow: 10px 14px 16px rgba(15, 23, 42, 0.24); }
+    .store-card:hover { transform: none; box-shadow: 10px 14px 16px rgba(15, 23, 42, 0.24); }
+    .store-card.aim-tone .progress > div { background: linear-gradient(90deg, #f59e0b, #ea580c); }
+    .store-card.dfa-phantas-tone .progress > div { background: linear-gradient(90deg, #3bb7d8, #0f7fa8); }
+    .store-card.dfa-c40-tone .progress > div { background: linear-gradient(90deg, #67e8f9, #0891b2); }
+    .store-card-header { display: flex; flex-direction: column; gap: 12px; }
+    .store-card-heading { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+    .brand-badges { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; gap: 8px; width: 100%; padding: 0 2px 8px; border-bottom: 1px solid rgba(31, 78, 120, 0.78); }
+    .store-title-row { display: flex; align-items: center; gap: 6px; min-width: 0; margin-top: 2px; min-height: 32px; }
+    .store-order-inline { flex: 0 0 auto; font-size: 11px; font-weight: 900; color: #4b5563; white-space: nowrap; letter-spacing: 0.01em; }
+    .store-title { font-size: 18px; font-weight: 900; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; margin: 0; min-width: 0; color: #0f172a; letter-spacing: 0.01em; }
+    .brand-badge, .brand-badges .badge { display: flex; align-items: center; justify-content: center; min-width: 0; min-height: 0; padding: 0; border: none; border-radius: 0; background: transparent !important; font-size: 13px; font-weight: 900; letter-spacing: 0.02em; line-height: 1.2; white-space: nowrap; }
+    .store-card-status { display: none; }
+    .store-card-subtitle { min-height: 16px; font-size: 11px; margin-top: 1px; }
+    .brand-badge.order-badge { display: none; }
+    .brand-badge.vendor-aim { color: #0f8aa8; }
+    .brand-badge.vendor-dfa { color: #1067b1; }
+    .brand-badge.machine-aim { color: #0f8aa8; }
+    .brand-badge.machine-phantas { color: #d18432; }
+    .brand-badge.machine-c40 { color: #0f766e; }
+    .brand-badges .b-good { color: #15803d; }
+    .brand-badges .b-warn { color: #d97706; }
+    .brand-badges .b-bad { color: #dc2626; }
+    .store-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px; }
+    .metric-line { padding: 0 0 6px; border-bottom: 1px solid rgba(148, 163, 184, 0.55); font-size: 12px; font-weight: 800; line-height: 1.3; color: #334155; white-space: nowrap; }
+    .metric-line strong { font-weight: 900; }
+    .metric-line.strong { color: #1d4ed8; border-bottom-color: rgba(59, 130, 246, 0.28); }
+    .metric-line.bad { color: #b91c1c; border-bottom-color: rgba(220, 38, 38, 0.28); }
+    .metric-line.good { color: #047857; border-bottom-color: rgba(5, 150, 105, 0.28); }
+    .metric-line.warn { color: #c2410c; border-bottom-color: rgba(245, 158, 11, 0.28); }
+    .metric-line.neutral { color: #475569; }
+    .metric-line.span-2 { grid-column: span 2; }
+    .metric-line .metric-label { display: inline; margin-right: 6px; }
+    .metric-line .metric-value { display: inline; }
+    @media (max-width: 640px) {
+      .store-card { padding: 13px; }
+      .brand-badges { gap: 6px; padding: 0 0 6px; }
+      .brand-badge, .brand-badges .badge { font-size: 12px; }
+      .store-title { font-size: 16px; }
+      .store-metrics { grid-template-columns: 1fr; }
+      .metric-line.span-2 { grid-column: span 1; }
+    }
+    .trend-list { display: grid; gap: 8px; }
+    .trend-item { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: #f8fbfe; }
+    .trend-item strong { display: block; margin-bottom: 2px; }
+    .trend-count { font-weight: 800; color: var(--primary); white-space: nowrap; }
+    .mini-note { font-size: 12px; color: var(--sub); }
+    .status-summary { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+    .new-issue-summary { display: grid; gap: 8px; margin-top: 10px; }
+    .summary-jump-heading { font-size: 12px; font-weight: 800; color: var(--primary); }
+    .summary-jump-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 10px; }
+    .summary-jump-item { width: 100%; display: flex; align-items: center; gap: 8px; text-align: left; background: #f8fbfe; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; min-width: 0; }
+    .summary-jump-item:hover { background: #eef6ff; border-color: #bfd5ec; }
+    .summary-inline-store { flex: 0 0 auto; font-size: 12px; font-weight: 800; color: #1f4e78; white-space: nowrap; }
+    .summary-inline-kind { flex: 0 0 auto; font-size: 11px; font-weight: 800; color: #b45309; white-space: nowrap; }
+    .summary-inline-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: #334155; }
+    @media (max-width: 900px) { .summary-jump-list { grid-template-columns: 1fr; } }
+    .issue-highlight td { background: #fff7df !important; transition: background 0.2s ease; }
+    .maintenance-rate-only { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 150px; border: 1px solid rgba(59, 130, 246, 0.16); border-radius: 18px; background: linear-gradient(180deg, #f8fbff 0%, #eef6ff 100%); }
+    .maintenance-rate-label { font-size: 13px; font-weight: 700; color: #475569; letter-spacing: 0.04em; }
+    .maintenance-rate-value { margin-top: 10px; font-size: 38px; line-height: 1; font-weight: 900; color: #1d4ed8; }
+    .issue-form-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 12px 0 0; }
+    .issue-form-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; }
+    .progress { width: 100%; height: 7px; background: #e9eef5; border-radius: 0; overflow: hidden; }
+    .progress > div { height: 100%; background: linear-gradient(90deg, #2f6c9f, #1f4e78); }
+    .contract-note { margin-top: 4px; padding-top: 6px; border-top: 1px solid rgba(226, 232, 240, 0.95); font-size: 11px; line-height: 1.35; color: #c2ccd6; font-weight: 500; letter-spacing: 0.02em; }
+    .store-card.contract-cancelled { border-color: #dbe5ec; }
+    .store-card.contract-cancelled .store-title,
+    .store-card.contract-cancelled .store-order-inline,
+    .store-card.contract-cancelled .store-card-subtitle,
+    .store-card.contract-cancelled .metric-label,
+    .store-card.contract-cancelled .metric-value { color: #b5c0cc !important; }
+    .store-card.contract-cancelled .brand-badge,
+    .store-card.contract-cancelled .brand-badges .badge { color: #c3ccd5 !important; border-color: rgba(203, 213, 225, 0.85) !important; background: #f8fafc !important; }
+    .store-card.contract-cancelled .metric-line { color: #b5c0cc !important; border-bottom-color: rgba(226, 232, 240, 0.9) !important; background: rgba(248, 250, 252, 0.55) !important; }
+    .store-card.contract-cancelled .progress { background: #f1f5f9; }
+    .store-card.contract-cancelled .progress > div { background: linear-gradient(90deg, #e2e8f0, #cbd5e1); }
+    .right { text-align: right; }
+    .hidden { display: none !important; }
+    .footer-space { height: 24px; }
+    @media (max-width: 1100px) {
+      .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+      .header-inner { flex-direction: column; }
+      .header .tabs { width: 100%; }
+    }
+    @media (max-width: 640px) {
+      .brand-badge.order-badge { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-inner">
+      <div class="header-copy">
+        <h1>清掃ロボット検証ダッシュボード</h1>
+        <p>定期アップロード前提のMVPアプリ。費用対効果、日々の実績、予定との差異、理由コメントを見える化します。</p>
+      </div>
+      <div class="tabs">
+        <button type="button" class="tab-btn active" data-tab="dashboard" onclick="window.switchTabFallback && window.switchTabFallback('dashboard')">ダッシュボード</button>
+        <button type="button" class="tab-btn" data-tab="robot-upload" onclick="window.switchTabFallback && window.switchTabFallback('robot-upload')">実績アップロード</button>
+        <button type="button" class="tab-btn" data-tab="store-upload" onclick="window.switchTabFallback && window.switchTabFallback('store-upload')">メンテ履歴取込</button>
+        <button type="button" class="tab-btn" data-tab="settings" onclick="window.switchTabFallback && window.switchTabFallback('settings')">管理者設定</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap">
+
+    <script>
+      window.switchTabFallback = function(tabId) {
+        if (tabId === 'settings' && typeof ensureAdminAccess === 'function' && !ensureAdminAccess()) return;
+        document.querySelectorAll('.tab-btn').forEach(function(btn) {
+          btn.classList.toggle('active', btn.dataset.tab === tabId);
+        });
+        document.querySelectorAll('.tab').forEach(function(tab) {
+          tab.classList.toggle('active', tab.id === tabId);
+        });
+      };
+    </script>
+
+    <div class="tab active" id="dashboard">
+      <div class="grid grid-4">
+        <div class="kpi"><div class="label">対象店舗数</div><div class="value" id="kpiStores">0</div></div>
+        <div class="kpi"><div class="label">平均達成率</div><div class="value" id="kpiRate">0%</div></div>
+        <div class="kpi"><div class="label">未達店舗数</div><div class="value" id="kpiShort">0</div></div>
+        <div class="kpi"><div class="label">対象月</div><div class="value" id="kpiMonth" style="font-size:22px;">-</div></div>
+      </div>
+
+      <div class="card" style="margin-top:16px;">
+        <div class="section-title">
+          <h2>月次サマリー</h2>
+          <div class="row">
+            <label class="small muted">表示月</label>
+            <input type="month" id="monthFilter" style="width:180px;" />
+          </div>
+        </div>
+        <div class="note small" id="summaryNote"></div>
+        <div id="newIssueSummary" class="new-issue-summary"></div>
+      </div>
+
+      <div class="card" style="margin-top:16px;">
+        <div class="section-title">
+          <h3>店舗カード</h3>
+          <div class="small muted">一覧の詳細確認前に、目標・達成率・実績・目標差異・目標まで残りを素早く見るサマリー表示です</div>
+        </div>
+        <div id="storeCards" class="store-grid"></div>
+      </div>
+
+      <div class="card" style="margin-top:16px;">
+        <h3>一覧</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>店舗</th>
+                <th>業者/機種</th>
+                <th>損益分岐時間</th>
+                <th>目標時間(120%)</th>
+                <th>実績時間</th>
+                <th>差異</th>
+                <th>達成率</th>
+                <th>当月残日数</th>
+                <th>達成まで必要時間</th>
+                <th>1日平均必要時間</th>
+              </tr>
+            </thead>
+            <tbody id="summaryTbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="grid grid-3" style="margin-top:16px;">
+        <div class="card">
+          <h3>未達理由の傾向</h3>
+          <div id="underachievementTrend"></div>
+        </div>
+        <div class="card">
+          <h3>故障・不具合の傾向</h3>
+          <div id="failureTrend"></div>
+        </div>
+        <div class="card">
+          <h3>メンテナンス状況</h3>
+          <div id="maintenanceStatus"></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px;" id="issueHistorySection">
+        <div class="section-title">
+          <h3>故障・不具合・要望・意見履歴</h3>
+          <div class="small muted">手入力での登録内容と、ロボット実績・メンテ履歴の異常、店舗からの要望・意見を一覧化します</div>
+        </div>
+        <div class="note small" style="margin-top:12px;">
+          <strong>故障・不具合を直接入力</strong>
+          <div class="issue-form-grid">
+            <div>
+              <label class="small muted">発生日</label>
+              <input type="date" id="manualIssueDate" />
+            </div>
+            <div>
+              <label class="small muted">店舗</label>
+              <select id="manualIssueStore"></select>
+            </div>
+            <div>
+              <label class="small muted">区分</label>
+              <select id="manualIssueCategory">
+                <option value="故障">故障</option>
+                <option value="不具合">不具合</option>
+                <option value="要望">要望</option>
+                <option value="意見">意見</option>
+                <option value="要確認">要確認</option>
+              </select>
+            </div>
+            <div>
+              <label class="small muted">状況</label>
+              <select id="manualIssueStatus">
+                <option value="依頼済">依頼済</option>
+                <option value="対応中">対応中</option>
+                <option value="完了">完了</option>
+              </select>
+            </div>
+          </div>
+          <div class="grid grid-2" style="margin-top:12px;">
+            <div>
+              <label class="small muted">不具合・理由</label>
+              <textarea id="manualIssueDetail" placeholder="例：充電エラーで停止"></textarea>
+            </div>
+            <div>
+              <label class="small muted">対応内容</label>
+              <textarea id="manualIssueComment" placeholder="例：バッテリー確認・再起動を実施"></textarea>
+            </div>
+          </div>
+          <div style="margin-top:12px;">
+            <label class="small muted">店舗の問題・要望</label>
+            <textarea id="manualIssueStoreRequest" placeholder="例：夜間の運転音を下げてほしい / 清掃ルートを見直してほしい"></textarea>
+          </div>
+          <div id="manualIssueCompletionWrap" class="hidden" style="margin-top:12px;">
+            <label class="small muted">完了原因（完了時に入力）</label>
+            <textarea id="manualIssueCompletionReason" placeholder="例：部品交換完了・動作確認済み"></textarea>
+          </div>
+          <div class="issue-form-actions">
+            <button class="btn-primary" id="manualIssueSaveBtn">登録</button>
+            <div id="manualIssueResult" class="small muted">未登録</div>
+          </div>
+        </div>
+        <div class="table-wrap" style="margin-top:16px;">
+          <table>
+            <thead>
+              <tr>
+                <th>発生日</th>
+                <th>店舗</th>
+                <th>区分</th>
+                <th>不具合・理由</th>
+                <th>コメント / 対応 / 完了原因</th>
+                <th>店舗の問題・要望</th>
+                <th>元データ</th>
+              </tr>
+            </thead>
+            <tbody id="issueHistoryBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab" id="robot-upload">
+      <div class="grid grid-2">
+        <div class="card">
+          <h2>ロボット実績アップロード</h2>
+          <p class="muted small">TaskReport系（xlsx）とC40詳細系（xls / xlsx）を取り込みます。ファイルはブラウザ内のみ保持し、ローカル保存します。</p>
+          <input type="file" id="robotFile" accept=".xlsx,.xls" />
+          <div class="row" style="margin-top:12px;">
+            <button class="btn-primary" id="robotImportBtn">取込実行</button>
+            <button class="btn-secondary" id="loadSampleBtn">サンプルデータ投入</button>
+            <button class="btn-danger" id="clearDataBtn">全データ削除</button>
+          </div>
+          <div id="robotImportResult" class="note small" style="margin-top:12px;">未取込</div>
+        </div>
+        <div class="card">
+          <h2>対応フォーマット</h2>
+          <table>
+            <tbody>
+              <tr><td><strong>TaskReport系</strong></td><td>タスク開始時間 / タスク終了時間 / ロボット名 / S/N / 作業総時間 など</td></tr>
+              <tr><td><strong>C40詳細系</strong></td><td>メインタスクID / ロボットSN / 店舗 / メインタスク開始時間 / 終了時間 など</td></tr>
+            </tbody>
+          </table>
+          <div class="note small" style="margin-top:12px;">C40詳細系はサブタスク行を自動でメインタスク単位に集約します。</div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px;">
+        <h3>アップロード履歴</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>取込日時</th><th>ファイル名</th><th>形式</th><th>件数</th><th>内容</th></tr></thead>
+            <tbody id="uploadLogBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab" id="store-upload">
+      <div class="grid grid-2">
+        <div class="card">
+          <h2>メンテ履歴取込</h2>
+          <p class="muted small">店舗別シートのメンテナンス報告履歴（xlsx / xls）を取り込みます。判定・備考・未実施項目をメンテ状況と不具合履歴に反映します。</p>
+          <input type="file" id="storeFile" accept=".xlsx,.xls" />
+          <div class="row" style="margin-top:12px;">
+            <button class="btn-primary" id="storeImportBtn">取込実行</button>
+          </div>
+          <div id="storeImportResult" class="note small" style="margin-top:12px;">未取込</div>
+        </div>
+        <div class="card">
+          <h2>対応フォーマット</h2>
+          <table>
+            <tbody>
+              <tr><td><strong>シート構成</strong></td><td>店舗ごとに1シート</td></tr>
+              <tr><td><strong>店舗名</strong></td><td>各シート2行目の店舗名、またはシート名から判定</td></tr>
+              <tr><td><strong>日付</strong></td><td>各シートの日次行の日付列</td></tr>
+              <tr><td><strong>判定</strong></td><td>問題なし / 未実施あり / 修理中 など</td></tr>
+              <tr><td><strong>補足</strong></td><td>備考欄と未実施項目を履歴へ反映</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px;">
+        <h3>未実施・要対応一覧</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>対象日</th><th>店舗</th><th>状態</th><th>判定</th><th>備考</th><th>未実施項目</th><th>元シート</th></tr></thead>
+            <tbody id="storeInputBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab" id="settings">
+      <div class="grid grid-2">
+        <div class="card">
+          <h2>管理者設定</h2>
+          <p class="muted small">費用情報は店舗に見せず、管理者側だけで保持します。DFAはPhantas 47,000円 / C40 48,000円、エイムは1機種 62,000円で計算します。</p>
+          <div class="grid grid-3">
+            <div>
+              <label class="small muted">時給</label>
+              <input type="number" id="hourlyCost" step="1" />
+            </div>
+            <div>
+              <label class="small muted">月日数</label>
+              <input type="number" id="monthDays" step="0.1" />
+            </div>
+            <div>
+              <label class="small muted">ロボット分</label>
+              <input type="number" id="ratioRobotMinutes" step="1" min="1" />
+            </div>
+            <div>
+              <label class="small muted">人分</label>
+              <input type="number" id="ratioHumanMinutes" step="1" min="1" />
+            </div>
+            <div>
+              <label class="small muted">DFA Phantas 月額</label>
+              <input type="number" id="feePhantas" step="1" />
+            </div>
+            <div>
+              <label class="small muted">DFA C40 月額</label>
+              <input type="number" id="feeC40" step="1" />
+            </div>
+            <div>
+              <label class="small muted">エイム 月額</label>
+              <input type="number" id="feeAim" step="1" />
+            </div>
+            <div>
+              <label class="small muted">管理者パスワード</label>
+              <input type="password" id="adminPassword" />
+            </div>
+          </div>
+          <div class="note small" style="margin-top:12px;">
+            稼働換算は <strong>ロボット◯分＝人◯分</strong> で設定できます。例：ロボット60分＝人30分。
+          </div>
+          <div class="row" style="margin-top:12px;">
+            <button class="btn-primary" id="saveSettingsBtn">設定保存</button>
+          </div>
+        </div>
+        <div class="card">
+          <h2>店舗別マスタ設定</h2>
+          <p class="muted small">業者名・機種名は自由入力（候補から選ぶか直接入力）。契約解除の適用開始月を設定すると、その月以降カードが解除済み表示に切り替わります。</p>
+          <datalist id="vendorList"><option value="DFA"><option value="エイム"><option value="USEN"></datalist>
+          <datalist id="machineList"><option value="Phantas"><option value="C40"></datalist>
+          <div id="storeMachineSettings"></div>
+          <div style="margin-top:12px;">
+            <button class="btn-primary" id="saveStoreMasterBtn">店舗マスタ保存</button>
+            <span id="storeMasterSaveResult" class="small muted" style="margin-left:10px;"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px;">
+        <div class="section-title">
+          <h3>損益管理一覧</h3>
+          <div class="row">
+            <label class="small muted">表示月</label>
+            <input type="month" id="adminFinanceMonth" style="width:180px;" />
+          </div>
+        </div>
+        <div class="small muted" style="margin-bottom:12px;">選択した月の月額費用・損益分岐時間・人件費換算・損益差額を管理者だけ表示します</div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>店舗</th>
+                <th>業者/機種</th>
+                <th>月額費用</th>
+                <th>損益分岐時間</th>
+                <th>目標時間(120%)</th>
+                <th>実績時間</th>
+                <th>人件費換算</th>
+                <th>損益差額</th>
+                <th>状況</th>
+              </tr>
+            </thead>
+            <tbody id="financeSummaryTbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer-space"></div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'robotTrialAppV6';
+    const defaultState = {
+      settings: {
+        hourlyCost: 1200,
+        monthDays: 30.4,
+        ratioHours: 3,
+        adminPassword: 'admin',
+        fees: { DFA_Phantas: 47000, DFA_C40: 48000, AIM: 62000 },
+        storeMachines: {
+          '枚方駅前店': 'Phantas',
+          '枚方駅から5秒店': 'Phantas',
+          '江坂店': 'Phantas',
+          '宗右衛門町店': 'Phantas',
+          '梅田芝田町店': 'Phantas',
+          '茶屋町店': 'Phantas',
+          '阪神西宮店': 'Phantas',
+          '天王寺店': 'Phantas',
+          'ジ・アウトレット北九州店': 'C40',
+          '阪急東中通店': 'Phantas',
+          'オールナイト関大前店': 'C40',
+          '十三本町店': 'C40'
+        },
+        storeFees: {
+          '枚方駅前店': 62000,
+          '枚方駅から5秒店': 62000,
+          '江坂店': 62000,
+          '宗右衛門町店': 62000,
+          '梅田芝田町店': 62000,
+          '茶屋町店': 62000,
+          '阪神西宮店': 47000,
+          '天王寺店': 47000,
+          '阪急東中通店': 47000,
+          'オールナイト関大前店': 48000,
+          '十三本町店': 48000,
+          'ジ・アウトレット北九州店': 48000
+        },
+        storeVendors: {
+          '枚方駅前店': 'エイム',
+          '枚方駅から5秒店': 'エイム',
+          '江坂店': 'エイム',
+          '宗右衛門町店': 'エイム',
+          '梅田芝田町店': 'エイム',
+          '茶屋町店': 'エイム',
+          '阪神西宮店': 'DFA',
+          '天王寺店': 'DFA',
+          '阪急東中通店': 'DFA',
+          'オールナイト関大前店': 'DFA',
+          '十三本町店': 'DFA',
+          'ジ・アウトレット北九州店': 'DFA'
+        },
+        storeSettings: {
+          '枚方駅前店':        { vendor:'エイム', machine:'Phantas', fee:62000, contractStatus:'契約解除', cancelFrom:'2026-06', visible:true, displayMode:'hide_after_cancel' },
+          '枚方駅から5秒店':  { vendor:'エイム', machine:'Phantas', fee:62000, contractStatus:'契約解除', cancelFrom:'2026-06', visible:true, displayMode:'hide_after_cancel' },
+          '江坂店':            { vendor:'エイム', machine:'Phantas', fee:62000, contractStatus:'契約解除', cancelFrom:'2026-06', visible:true, displayMode:'hide_after_cancel' },
+          '宗右衛門町店':      { vendor:'エイム', machine:'Phantas', fee:62000, contractStatus:'契約解除', cancelFrom:'2026-06', visible:true, displayMode:'hide_after_cancel' },
+          '梅田芝田町店':      { vendor:'エイム', machine:'Phantas', fee:62000, contractStatus:'契約解除', cancelFrom:'2026-06', visible:true, displayMode:'hide_after_cancel' },
+          '茶屋町店':          { vendor:'エイム', machine:'Phantas', fee:62000, contractStatus:'契約解除', cancelFrom:'2026-06', visible:true, displayMode:'hide_after_cancel' },
+          '阪神西宮店':        { vendor:'DFA',   machine:'Phantas', fee:47000, contractStatus:'契約中',   cancelFrom:'',        visible:true, displayMode:'show' },
+          '天王寺店':          { vendor:'DFA',   machine:'Phantas', fee:47000, contractStatus:'契約中',   cancelFrom:'',        visible:true, displayMode:'show' },
+          '阪急東中通店':      { vendor:'DFA',   machine:'Phantas', fee:47000, contractStatus:'契約中',   cancelFrom:'',        visible:true, displayMode:'show' },
+          'オールナイト関大前店': { vendor:'DFA', machine:'C40',   fee:48000, contractStatus:'契約中',   cancelFrom:'',        visible:true, displayMode:'show' },
+          '十三本町店':        { vendor:'DFA',   machine:'C40',     fee:48000, contractStatus:'契約中',   cancelFrom:'',        visible:true, displayMode:'show' },
+          'ジ・アウトレット北九州店': { vendor:'DFA', machine:'C40', fee:48000, contractStatus:'契約中', cancelFrom:'',       visible:true, displayMode:'show' }
+        }
+      },
+      robotTasks: [],
+      storeInputs: [],
+      manualIssues: [],
+      uploads: [],
+      storeMaster: [
+        { storeName: '江坂店', goLiveDate: '' },
+        { storeName: '枚方駅前店', goLiveDate: '' },
+        { storeName: '十三本町店', goLiveDate: '2026-05-20' },
+        { storeName: '阪急東中通店', goLiveDate: '2026-05-26' },
+        { storeName: '天王寺店', goLiveDate: '2026-05-21' },
+        { storeName: '茶屋町店', goLiveDate: '' },
+        { storeName: '阪神西宮店', goLiveDate: '2026-05-19' },
+        { storeName: '梅田芝田町店', goLiveDate: '' },
+        { storeName: 'オールナイト関大前店', goLiveDate: '2026-05-20' },
+        { storeName: '枚方駅から5秒店', goLiveDate: '' },
+        { storeName: 'ジ・アウトレット北九州店', goLiveDate: '2026-05-25' },
+        { storeName: '宗右衛門町店', goLiveDate: '' }
+      ]
+    };
+
+    let state;
+    let storeChart, dailyChart;
+    let adminUnlocked = false;
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return JSON.parse(JSON.stringify(defaultState));
+        const merged = JSON.parse(raw);
+        const mergedSettings = merged.settings || {};
+        return {
+          ...defaultState,
+          ...merged,
+          settings: {
+            ...defaultState.settings,
+            ...mergedSettings,
+            hourlyCost: Number(mergedSettings.hourlyCost) || defaultState.settings.hourlyCost,
+            monthDays: Number(mergedSettings.monthDays) || defaultState.settings.monthDays,
+            ratioHours: Number(mergedSettings.ratioHours) || defaultState.settings.ratioHours,
+            adminPassword: String(mergedSettings.adminPassword || defaultState.settings.adminPassword || 'admin'),
+            fees: {
+              ...defaultState.settings.fees,
+              ...((mergedSettings || {}).fees || {}),
+              DFA_Phantas: Number(((mergedSettings || {}).fees || {}).DFA_Phantas) || defaultState.settings.fees.DFA_Phantas,
+              DFA_C40: Number(((mergedSettings || {}).fees || {}).DFA_C40) || defaultState.settings.fees.DFA_C40,
+              AIM: Number(((mergedSettings || {}).fees || {}).AIM) || defaultState.settings.fees.AIM
+            },
+            storeMachines: { ...defaultState.settings.storeMachines, ...((mergedSettings || {}).storeMachines || {}) },
+            storeFees: { ...defaultState.settings.storeFees, ...((mergedSettings || {}).storeFees || {}) },
+            storeVendors: { ...defaultState.settings.storeVendors, ...((mergedSettings || {}).storeVendors || {}) },
+            storeSettings: { ...defaultState.settings.storeSettings, ...((mergedSettings || {}).storeSettings || {}) }
+          },
+          robotTasks: Array.isArray(merged.robotTasks) ? merged.robotTasks : [],
+          storeInputs: Array.isArray(merged.storeInputs) ? merged.storeInputs : [],
+          uploads: Array.isArray(merged.uploads) ? merged.uploads : [],
+          storeMaster: Array.isArray(merged.storeMaster) && merged.storeMaster.length ? merged.storeMaster : defaultState.storeMaster
+        };
+      } catch (e) {
+        return JSON.parse(JSON.stringify(defaultState));
+      }
+    }
+
+    function saveState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    function yen(n) { return Math.round(Number(n || 0)).toLocaleString('ja-JP') + '円'; }
+    function num(n, d = 0) { return Number(n || 0).toLocaleString('ja-JP', { minimumFractionDigits: d, maximumFractionDigits: d }); }
+    function pct(n) { return Number(n || 0).toLocaleString('ja-JP', { style: 'percent', minimumFractionDigits: 0, maximumFractionDigits: 0 }); }
+    function robotMinutesFromRatio(ratio) {
+      const safeRatio = Number(ratio) || 3;
+      if (Math.abs(safeRatio - Math.round(safeRatio)) < 0.0001) return Math.round(safeRatio * 10);
+      return Math.round(safeRatio * 60);
+    }
+    function humanMinutesFromRatio(ratio) {
+      const safeRatio = Number(ratio) || 3;
+      if (Math.abs(safeRatio - Math.round(safeRatio)) < 0.0001) return 10;
+      return 30;
+    }
+    function ratioLabel(ratio) {
+      return `人${num(humanMinutesFromRatio(ratio))}分＝ロボット${num(robotMinutesFromRatio(ratio))}分`;
+    }
+    function cardToneClass(summaryRow) {
+      if (summaryRow.vendor === 'エイム') return 'aim-tone contract-cancelled';
+      if (summaryRow.machine === 'C40') return 'dfa-c40-tone';
+      if (summaryRow.machine === 'AIM機' || summaryRow.machine === 'Phantas') return 'dfa-phantas-tone';
+      return '';
+    }
+    function cardToneLabel(summaryRow) {
+      if (summaryRow.vendor === 'エイム') return 'エイム';
+      if (summaryRow.vendor === 'DFA' && summaryRow.machine === 'C40') return 'DFA / C40';
+      if (summaryRow.vendor === 'DFA') return 'DFA / Phantas';
+      return summaryRow.machine || '未設定';
+    }
+    function storeSortIndex(storeName) {
+      const names = (state.storeMaster || []).map(s => canonicalStoreName(s.storeName));
+      const idx = names.indexOf(canonicalStoreName(storeName));
+      return idx === -1 ? 9999 : idx;
+    }
+    function storeOrderLabel(storeName) {
+      const idx = storeSortIndex(storeName);
+      return idx === 9999 ? 'No.--' : `No.${String(idx + 1).padStart(2, '0')}`;
+    }
+    function vendorBadgeClass(summaryRow) {
+      if (summaryRow.vendor === 'エイム') return 'brand-badge vendor-aim';
+      if (summaryRow.vendor === 'DFA') return 'brand-badge vendor-dfa';
+      return 'brand-badge';
+    }
+    function displayVendorLabel(summaryRow) {
+      if (summaryRow.vendor === 'エイム') return 'AIM';
+      return summaryRow.vendor || '未設定';
+    }
+    function displayMachineLabel(summaryRow) {
+      if (summaryRow.machine === 'AIM機') return 'Phantas';
+      return summaryRow.machine || '未設定';
+    }
+    function machineBadgeClass(summaryRow) {
+      if (summaryRow.machine === 'AIM機' || summaryRow.machine === 'Phantas') return 'brand-badge machine-phantas';
+      if (summaryRow.machine === 'C40') return 'brand-badge machine-c40';
+      return 'brand-badge';
+    }
+    function gapChipClass(value) {
+      if (Number(value || 0) > 0) return 'metric-chip good';
+      if (Number(value || 0) < 0) return 'metric-chip bad';
+      return 'metric-chip';
+    }
+    function achievementChipClass(value) {
+      if (Number(value || 0) >= 1) return 'metric-chip good';
+      if (Number(value || 0) >= 0.8) return 'metric-chip warn';
+      return 'metric-chip strong';
+    }
+    function netEffectChipClass(value) {
+      if (Number(value || 0) > 0) return 'metric-chip good';
+      if (Number(value || 0) < 0) return 'metric-chip bad';
+      return 'metric-chip';
+    }
+    function remainingChipClass(value) {
+      if (Number(value || 0) <= 0) return 'metric-chip good';
+      return 'metric-chip';
+    }
+    function monthKey(dateStr) { return (dateStr || '').slice(0, 7); }
+    function dateKey(dateStr) { return (dateStr || '').slice(0, 10); }
+    function daysInMonth(monthStr) {
+      const [y, m] = String(monthStr || '').split('-').map(Number);
+      if (!y || !m) return 0;
+      return new Date(y, m, 0).getDate();
+    }
+    function remainingDaysInMonth(monthStr) {
+      const [y, m] = String(monthStr || '').split('-').map(Number);
+      if (!y || !m) return 0;
+      const today = new Date();
+      const currentKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+      if (monthStr < currentKey) return 0;
+      if (monthStr > currentKey) return daysInMonth(monthStr);
+      return Math.max(0, daysInMonth(monthStr) - today.getDate());
+    }
+
+    const STORE_ALIASES = [
+      ['江坂', '江坂店'],
+      ['ジャンカラ-江坂', '江坂店'],
+      ['ジャンカラ-江坂店', '江坂店'],
+      ['枚方', '枚方駅前店'],
+      ['枚方店', '枚方駅前店'],
+      ['枚方駅前', '枚方駅前店'],
+      ['枚方駅前店', '枚方駅前店'],
+      ['ジャンカラ-枚方駅前', '枚方駅前店'],
+      ['ジャンカラ-枚方駅前店', '枚方駅前店'],
+      ['5秒', '枚方駅から5秒店'],
+      ['枚方5秒', '枚方駅から5秒店'],
+      ['枚方駅から5秒', '枚方駅から5秒店'],
+      ['ジャンカラ-枚方5秒', '枚方駅から5秒店'],
+      ['ジャンカラ-枚方5秒店', '枚方駅から5秒店'],
+      ['ジャンカラ5秒', '枚方駅から5秒店'],
+      ['ジャンカラ5秒店', '枚方駅から5秒店'],
+      ['宗右衛門', '宗右衛門町店'],
+      ['宗右衛門町', '宗右衛門町店'],
+      ['ジャンカラ-宗右衛門町', '宗右衛門町店'],
+      ['芝田町', '梅田芝田町店'],
+      ['梅田芝田町', '梅田芝田町店'],
+      ['ジャンカラ-梅田芝田町', '梅田芝田町店'],
+      ['茶屋町', '茶屋町店'],
+      ['ジャンカラ-茶屋町', '茶屋町店'],
+      ['阪神西宮', '阪神西宮店'],
+      ['西宮', '阪神西宮店'],
+      ['ジャンカラ阪神西宮店', '阪神西宮店'],
+      ['ジャンカラ阪神西宮1F', '阪神西宮店'],
+      ['ジャンカラ阪神西宮2F', '阪神西宮店'],
+      ['天王寺', '天王寺店'],
+      ['北九州店', 'ジ・アウトレット北九州店'],
+      ['ジャンカラ ジ・アウトレット北九州店', 'ジ・アウトレット北九州店'],
+      ['阪急中通', '阪急東中通店'],
+      ['阪急中通店', '阪急東中通店'],
+      ['阪急東中通', '阪急東中通店'],
+      ['関大前', 'オールナイト関大前店'],
+      ['オールナイト関大前店', 'オールナイト関大前店'],
+      ['ｵｰﾙﾅｲﾄ関大前店', 'オールナイト関大前店']
+    ];
+    const OFFICIAL_STORE_NAMES = [...new Set((defaultState.storeMaster || []).map(s => s.storeName))];
+
+    function canonicalStoreName(name) {
+      const raw = String(name || '').trim();
+      if (!raw) return '未設定店舗';
+      const simplified = raw
+        .replace(/^ジャンカラ[-\s]*/, '')
+        .replace(/店$/, '')
+        .trim();
+      const candidates = [raw, simplified].filter(Boolean);
+      const hit = STORE_ALIASES.find(([from]) => candidates.includes(from));
+      if (hit) return hit[1];
+      const directOfficial = OFFICIAL_STORE_NAMES.find(store => candidates.includes(store));
+      return directOfficial || raw;
+    }
+
+    state = normalizeState(loadState());
+
+    function normalizeState(currentState) {
+      const normalizedMachines = Object.entries((currentState.settings || {}).storeMachines || {}).reduce((acc, [key, value]) => {
+        acc[canonicalStoreName(key)] = value;
+        return acc;
+      }, {});
+      const normalizedFees = Object.entries((currentState.settings || {}).storeFees || {}).reduce((acc, [key, value]) => {
+        acc[canonicalStoreName(key)] = value;
+        return acc;
+      }, {});
+      const normalizedVendors = Object.entries((currentState.settings || {}).storeVendors || {}).reduce((acc, [key, value]) => {
+        acc[canonicalStoreName(key)] = value;
+        return acc;
+      }, {});
+
+      const normalizedMaster = [];
+      const seenStores = new Set();
+      (currentState.storeMaster || []).forEach(item => {
+        const storeName = canonicalStoreName(item.storeName);
+        if (seenStores.has(storeName)) return;
+        seenStores.add(storeName);
+        normalizedMaster.push({ ...item, storeName });
+      });
+
+      return {
+        ...currentState,
+        settings: {
+          ...(currentState.settings || {}),
+          hourlyCost: Number((currentState.settings || {}).hourlyCost) || defaultState.settings.hourlyCost,
+          monthDays: Number((currentState.settings || {}).monthDays) || defaultState.settings.monthDays,
+          ratioHours: Number((currentState.settings || {}).ratioHours) || defaultState.settings.ratioHours,
+          adminPassword: String((currentState.settings || {}).adminPassword || defaultState.settings.adminPassword || 'admin'),
+          fees: {
+            ...defaultState.settings.fees,
+            ...((currentState.settings || {}).fees || {}),
+            DFA_Phantas: Number((((currentState.settings || {}).fees || {}).DFA_Phantas)) || defaultState.settings.fees.DFA_Phantas,
+            DFA_C40: Number((((currentState.settings || {}).fees || {}).DFA_C40)) || defaultState.settings.fees.DFA_C40,
+            AIM: Number((((currentState.settings || {}).fees || {}).AIM)) || defaultState.settings.fees.AIM
+          },
+          storeMachines: {
+            ...defaultState.settings.storeMachines,
+            ...normalizedMachines
+          },
+          storeFees: {
+            ...defaultState.settings.storeFees,
+            ...normalizedFees
+          },
+          storeVendors: {
+            ...defaultState.settings.storeVendors,
+            ...normalizedVendors
+          },
+          storeSettings: {
+            ...defaultState.settings.storeSettings,
+            ...Object.keys({ ...normalizedMachines, ...normalizedFees, ...normalizedVendors }).reduce((acc, key) => {
+              acc[key] = {
+                vendor: normalizedVendors[key] || '',
+                machine: normalizedMachines[key] || '',
+                fee: Number(normalizedFees[key] || 0),
+                contractStatus: '契約中',
+                cancelFrom: '',
+                visible: true,
+                displayMode: 'show'
+              };
+              return acc;
+            }, {}),
+            ...Object.entries((currentState.settings || {}).storeSettings || {}).reduce((acc, [k, v]) => {
+              const merged = { contractStatus:'契約中', cancelFrom:'', visible:true, displayMode:'show', ...(v||{}) };
+              if (!merged.displayMode) merged.displayMode = merged.visible === false ? 'hidden' : (merged.contractStatus === '契約解除' && merged.cancelFrom ? 'hide_after_cancel' : 'show');
+              acc[canonicalStoreName(k)] = merged;
+              return acc;
+            }, {})
+          }
+        },
+        robotTasks: (currentState.robotTasks || []).map(t => ({ ...t, storeName: canonicalStoreName(t.storeName) })),
+        storeInputs: (currentState.storeInputs || []).map(t => ({ ...t, storeName: canonicalStoreName(t.storeName) })),
+        storeMaster: normalizedMaster.length ? normalizedMaster : defaultState.storeMaster
+      };
+    }
+
+    function toDate(v) {
+      if (!v) return '';
+      if (typeof v === 'string') return v.replace(/\//g, '-').slice(0, 19);
+      const d = new Date(v);
+      if (isNaN(d)) return '';
+      return d.toISOString().slice(0, 19).replace('T', ' ');
+    }
+
+    function parseDurationText(text) {
+      if (!text) return 0;
+      const s = String(text).trim();
+      const h = /([\d.]+)\s*h/.exec(s);
+      const m = /([\d.]+)\s*min/.exec(s);
+      const sec = /([\d.]+)\s*sec/.exec(s);
+      return (h ? Number(h[1]) : 0) + (m ? Number(m[1]) / 60 : 0) + (sec ? Number(sec[1]) / 3600 : 0);
+    }
+
+    function hoursBetween(a, b) {
+      const d1 = new Date(a), d2 = new Date(b);
+      if (isNaN(d1) || isNaN(d2)) return 0;
+      return Math.max(0, (d2 - d1) / 3600000);
+    }
+
+    function fileToArrayBuffer(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = e => resolve(e.target.result);
+        reader.onerror = reject;
+        reader.readAsArrayBuffer(file);
+      });
+    }
+
+    function normalizeHeader(h) { return String(h || '').trim(); }
+
+    function workbookToRows(wb) {
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      return XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
+    }
+
+    function sheetToMatrix(sheet) {
+      return XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: false });
+    }
+
+    function maintenanceStatusFromRaw(judgement, note) {
+      const j = String(judgement || '').trim();
+      const n = String(note || '').trim();
+      if (/修理中|故障|停止/.test(n)) return '未稼働';
+      if (/未実施/.test(j) || /未実施/.test(n)) return '一部停止';
+      if (/問題なし/.test(j) || /問題なし/.test(n)) return '正常';
+      return j || n || '';
+    }
+
+    function parseMaintenanceWorkbook(wb, fileName) {
+      const skipSheets = new Set(['回答', '（原）', '店舗D']);
+      const records = [];
+      const dailyCols = ['C', 'D', 'E', 'F', 'G', 'H', 'I'];
+      const periodicCols = ['K', 'L', 'M', 'N', 'O', 'P', 'Q'];
+      const cleanCell = (sheet, address) => {
+        const cell = sheet[address];
+        if (!cell) return '';
+        return String(cell.w ?? cell.v ?? '').trim();
+      };
+      const cleanDateCell = (sheet, address) => {
+        const cell = sheet[address];
+        if (!cell) return '';
+        if (cell.t === 'n' && typeof cell.v === 'number') {
+          const parsed = XLSX.SSF.parse_date_code(cell.v);
+          if (parsed) {
+            return `${parsed.y}-${String(parsed.m).padStart(2, '0')}-${String(parsed.d).padStart(2, '0')}`;
+          }
+        }
+        return String(cell.w ?? cell.v ?? '').trim();
+      };
+      wb.SheetNames.forEach(sheetName => {
+        if (skipSheets.has(sheetName)) return;
+        const sheet = wb.Sheets[sheetName];
+        if (!sheet) return;
+        const storeName = canonicalStoreName(cleanCell(sheet, 'C2') || sheetName);
+        const dailyHeaders = dailyCols.map(col => cleanCell(sheet, `${col}4`)).filter(Boolean);
+        const periodicHeaders = periodicCols.map(col => cleanCell(sheet, `${col}4`)).filter(Boolean);
+        const range = XLSX.utils.decode_range(sheet['!ref'] || 'A1');
+        for (let rowNumber = 6; rowNumber <= range.e.r + 1; rowNumber += 1) {
+          const rawDate = cleanDateCell(sheet, `B${rowNumber}`);
+          const taskDate = dateKey(toDate(rawDate) || rawDate);
+          if (!taskDate) continue;
+          const judgement = cleanCell(sheet, `J${rowNumber}`);
+          const note = cleanCell(sheet, `R${rowNumber}`);
+          const uncheckedDaily = /未実施/.test(judgement)
+            ? dailyCols.flatMap((col, idx) => cleanCell(sheet, `${col}${rowNumber}`) ? [] : (dailyHeaders[idx] ? [dailyHeaders[idx]] : []))
+            : [];
+          const flaggedPeriodic = periodicCols.flatMap((col, idx) => {
+            const value = cleanCell(sheet, `${col}${rowNumber}`);
+            if (!value || ['✓', '✔', '○', '◯', '問題なし'].includes(value)) return [];
+            return periodicHeaders[idx] ? [periodicHeaders[idx]] : [];
+          });
+          const anyChecks = dailyCols.some(col => cleanCell(sheet, `${col}${rowNumber}`)) || periodicCols.some(col => cleanCell(sheet, `${col}${rowNumber}`));
+          const maintenanceItems = [...uncheckedDaily, ...flaggedPeriodic];
+          const status = maintenanceStatusFromRaw(judgement, note);
+          if (!(judgement || note || maintenanceItems.length || anyChecks || status)) continue;
+          records.push({
+            sourceFile: fileName,
+            sourceType: 'maintenance-history',
+            taskDate,
+            storeName,
+            status,
+            reason: judgement && judgement !== '問題なし' ? judgement : '',
+            comment: [note ? note.replace(/^※/, '') : '', maintenanceItems.length ? `未実施項目 ${maintenanceItems.join(' / ')}` : ''].filter(Boolean).join(' / '),
+            reclean: '',
+            additionalMinutes: 0,
+            manualRuntimeHours: 0,
+            maintenanceJudge: judgement,
+            maintenanceNote: note,
+            maintenanceItems: maintenanceItems.join(' / '),
+            maintenanceSheet: sheetName
+          });
+        }
+      });
+      return records.filter(record => record.taskDate && record.storeName);
+    }
+
+    function detectFormat(rows) {
+      const headers = rows[0] ? Object.keys(rows[0]).map(normalizeHeader) : [];
+      if (headers.includes('メインタスクID') && headers.includes('ロボットSN')) return 'c40-detail';
+      if (headers.includes('タスク開始時間') && headers.includes('作業総時間')) return 'taskreport';
+      if (headers.includes('対象日') && headers.includes('店舗名')) return 'store-input';
+      return 'unknown';
+    }
+
+    function parseTaskReport(rows, fileName) {
+      const tasks = rows.map(r => {
+        const start = toDate(r['タスク開始時間']);
+        const end = toDate(r['タスク終了時間']);
+        const duration = parseDurationText(r['作業総時間']) || hoursBetween(start, end) || Number(r['']) * 24 || 0;
+        return {
+          sourceType: 'taskreport',
+          sourceFile: fileName,
+          taskId: `${r['S/N'] || ''}_${start}_${r['タスク名'] || ''}`,
+          taskDate: dateKey(start),
+          month: monthKey(start),
+          storeName: canonicalStoreName(r['ロボット名'] || r['タスク名'] || r['マップ名'] || '未設定店舗'),
+          floorName: r['マップ名'] || '',
+          robotSerialNo: r['S/N'] || '',
+          robotDisplayName: r['ロボット名'] || '',
+          startAt: start,
+          endAt: end,
+          runtimeHours: duration,
+          completionRate: Number(r['タスク完成率(%)'] || 0),
+          plannedArea: Number(r['清掃予定面積（㎡）'] || 0),
+          actualArea: Number(r['実際清掃面積（㎡）'] || 0),
+          productivity: Number(r['作業効率（㎡/h）'] || 0),
+          jobStatus: r['ジョブ状況'] || '',
+          taskType: r['タスクタイプ'] || '',
+          reason: r['備考'] || ''
+        };
+      }).filter(t => t.taskDate);
+      return tasks;
+    }
+
+    function parseC40Detail(rows, fileName) {
+      const map = new Map();
+      rows.forEach(r => {
+        const id = r['メインタスクID'] || `${r['ロボットSN']}_${r['メインタスク開始時間']}_${r['タスク名']}`;
+        if (!map.has(id)) {
+          const start = toDate(r['メインタスク開始時間']);
+          const end = toDate(r['メインタスク終了時間']);
+          map.set(id, {
+            sourceType: 'c40-detail',
+            sourceFile: fileName,
+            taskId: id,
+            taskDate: dateKey(start),
+            month: monthKey(start),
+            storeName: canonicalStoreName(r['店舗'] || '未設定店舗'),
+            floorName: '',
+            robotSerialNo: r['ロボットSN'] || '',
+            robotDisplayName: r['店舗'] || '',
+            startAt: start,
+            endAt: end,
+            runtimeHours: hoursBetween(start, end),
+            completionRate: Number(r['清掃カバレッジ率（%）'] || 0) * 100,
+            plannedArea: Number(r['サブタスク計画面積'] || 0),
+            actualArea: Number(r['清掃面積'] || 0),
+            productivity: Number(r['メインタスク清掃効率（㎡/h）'] || 0),
+            jobStatus: r['清掃ステータス'] || '',
+            taskType: r['タスクタイプ'] || '',
+            reason: r['理由'] || ''
+          });
+        }
+      });
+      return Array.from(map.values()).filter(t => t.taskDate);
+    }
+
+    function parseStoreInputRows(rows, fileName) {
+      const alias = {
+        date: ['対象日', '日付', 'date'],
+        store: ['店舗名', '店舗', 'store'],
+        status: ['稼働状況', 'status'],
+        reason: ['実績が少ない理由', '理由', 'reason'],
+        comment: ['コメント', 'comment'],
+        reclean: ['再清掃有無', 'reclean'],
+        additional: ['追加対応工数（分）', '追加対応工数', 'additional_minutes'],
+        runtime: ['実績運用時間（時間）', '実績運用時間', 'manual_runtime_hours'],
+      };
+      function pick(row, names) {
+        const key = Object.keys(row).find(k => names.includes(String(k).trim()));
+        return key ? row[key] : '';
+      }
+      return rows.map(r => ({
+        sourceFile: fileName,
+        taskDate: dateKey(toDate(pick(r, alias.date)) || pick(r, alias.date)),
+        storeName: canonicalStoreName(pick(r, alias.store)),
+        status: pick(r, alias.status),
+        reason: pick(r, alias.reason),
+        comment: pick(r, alias.comment),
+        reclean: pick(r, alias.reclean),
+        additionalMinutes: Number(pick(r, alias.additional) || 0),
+        manualRuntimeHours: Number(pick(r, alias.runtime) || 0),
+      })).filter(r => r.taskDate && r.storeName);
+    }
+
+    function upsertTasks(tasks, sourceFormat, fileName) {
+      const existing = new Map(state.robotTasks.map(t => [t.taskId, t]));
+      tasks.forEach(t => existing.set(t.taskId, t));
+      state.robotTasks = Array.from(existing.values());
+      state.uploads.unshift({ importedAt: new Date().toLocaleString('ja-JP'), fileName, format: sourceFormat, count: tasks.length, note: 'ロボット実績取込' });
+      saveState();
+    }
+
+    function upsertStoreInputs(inputs, fileName) {
+      const key = x => `${x.taskDate}__${x.storeName}`;
+      const existing = new Map(state.storeInputs.map(x => [key(x), x]));
+      inputs.forEach(i => existing.set(key(i), i));
+      state.storeInputs = Array.from(existing.values());
+      state.uploads.unshift({ importedAt: new Date().toLocaleString('ja-JP'), fileName, format: 'maintenance-history', count: inputs.length, note: 'メンテ履歴取込' });
+      saveState();
+    }
+
+    function storeSettingFor(storeName) {
+      return state.settings.storeSettings[canonicalStoreName(storeName)] || null;
+    }
+    function feeForStore(storeName) {
+      const ss = storeSettingFor(storeName);
+      if (ss && ss.fee) return Number(ss.fee);
+      const key = canonicalStoreName(storeName);
+      return Number(state.settings.storeFees[key] || 0);
+    }
+    function vendorForStore(storeName) {
+      const ss = storeSettingFor(storeName);
+      if (ss && ss.vendor) return ss.vendor;
+      return state.settings.storeVendors[canonicalStoreName(storeName)] || '';
+    }
+    function isContractCancelled(storeName, displayMonth) {
+      const ss = storeSettingFor(storeName);
+      if (!ss || ss.contractStatus !== '契約解除') return false;
+      if (!ss.cancelFrom) return true;
+      return displayMonth >= ss.cancelFrom;
+    }
+    function storeDisplayMode(storeName) {
+      const ss = storeSettingFor(storeName);
+      if (!ss) return 'show';
+      if (ss.displayMode) return ss.displayMode;
+      if (ss.visible === false) return 'hidden';
+      if (ss.contractStatus === '契約解除' && ss.cancelFrom) return 'hide_after_cancel';
+      return 'show';
+    }
+    function isStoreVisible(storeName, displayMonth) {
+      const ss = storeSettingFor(storeName);
+      if (!ss) return true;
+      const mode = storeDisplayMode(storeName);
+      if (mode === 'hidden') return false;
+      if (mode === 'hide_after_cancel' && ss.cancelFrom && displayMonth && displayMonth >= ss.cancelFrom) return false;
+      return true;
+    }
+
+    function requiredHours(storeName) {
+      const fee = feeForStore(storeName);
+      if (!fee) return { fee: 0, human: 0, robot: 0, targetRobot: 0, daily: 0, dailyBreakeven: 0, dailyTarget: 0 };
+      const human = fee / state.settings.hourlyCost;
+      const robot = human * state.settings.ratioHours;
+      const targetRobot = robot * 1.2;
+      const dailyBreakeven = robot / state.settings.monthDays;
+      const dailyTarget = targetRobot / state.settings.monthDays;
+      return { fee, human, robot, targetRobot, daily: dailyTarget, dailyBreakeven, dailyTarget };
+    }
+
+    function machineForStore(storeName) {
+      const ss = storeSettingFor(storeName);
+      if (ss && ss.machine) return ss.machine;
+      return state.settings.storeMachines[canonicalStoreName(storeName)] || '';
+    }
+    function vendorToneClass(vendor) {
+      if (vendor === 'エイム') return 'aim-tone';
+      if (vendor === 'DFA') return 'dfa-phantas-tone';
+      if (vendor === 'USEN') return 'dfa-c40-tone';
+      return '';
+    }
+    function monthAwareCardClass(summaryRow, displayMonth) {
+      const classes = [];
+      const baseTone = summaryRow.machine === 'C40' ? 'dfa-c40-tone' : vendorToneClass(summaryRow.vendor);
+      if (baseTone) classes.push(baseTone);
+      if (isContractCancelled(summaryRow.store, displayMonth)) classes.push('contract-cancelled');
+      return classes.join(' ');
+    }
+
+    function aggregateMonthSummary(month) {
+      const robotTasks = state.robotTasks.filter(t => t.month === month);
+      const masterStores = (state.storeMaster || []).map(s => s.storeName);
+      const stores = [...new Set([...masterStores, ...robotTasks.map(t => t.storeName), ...state.storeInputs.filter(s => monthKey(s.taskDate) === month).map(s => s.storeName)])]
+        .filter(store => isStoreVisible(store, month))
+        .filter(store => machineForStore(store))
+        .sort((a, b) => {
+          const diff = storeSortIndex(a) - storeSortIndex(b);
+          return diff !== 0 ? diff : a.localeCompare(b, 'ja');
+        });
+      return stores.map(store => {
+        const machine = machineForStore(store);
+        const vendor = vendorForStore(store);
+        const target = requiredHours(store);
+        const storeInputs = state.storeInputs.filter(s => s.storeName === store && monthKey(s.taskDate) === month);
+        const dayMap = {};
+        robotTasks.filter(t => t.storeName === store).forEach(t => {
+          if (!dayMap[t.taskDate]) dayMap[t.taskDate] = { actual: 0, reasons: [], comments: [], status: '正常' };
+          dayMap[t.taskDate].actual += t.runtimeHours || 0;
+          if (t.jobStatus && t.jobStatus !== 'タスクの完了') dayMap[t.taskDate].status = '一部停止';
+        });
+        storeInputs.forEach(i => {
+          if (!dayMap[i.taskDate]) dayMap[i.taskDate] = { actual: 0, reasons: [], comments: [], status: i.status || '正常' };
+          if (i.manualRuntimeHours) dayMap[i.taskDate].actual = i.manualRuntimeHours;
+          if (i.reason) dayMap[i.taskDate].reasons.push(i.reason);
+          if (i.comment) dayMap[i.taskDate].comments.push(i.comment);
+          if (i.status) dayMap[i.taskDate].status = i.status;
+        });
+        const days = Object.keys(dayMap).sort();
+        const lastDay = days[days.length - 1];
+        const dayActual = lastDay ? dayMap[lastDay].actual : 0;
+        const monthActual = days.reduce((sum, d) => sum + (dayMap[d].actual || 0), 0);
+        const rate = target.targetRobot ? monthActual / target.targetRobot : 0;
+        const status = !machine ? '機種未設定' : (rate >= 1 ? '達成' : rate >= 0.8 ? 'あと少し' : '未達');
+        const master = (state.storeMaster || []).find(x => x.storeName === store) || {};
+        const savedHumanHours = monthActual / (state.settings.ratioHours || 1);
+        const savingYen = savedHumanHours * state.settings.hourlyCost;
+        const netEffectYen = savingYen - target.fee;
+        const costRecovery = target.fee ? savingYen / target.fee : 0;
+        const remainingDays = remainingDaysInMonth(month);
+        const remainingNeeded = machine ? Math.max(0, target.targetRobot - monthActual) : 0;
+        const neededPerDay = !machine ? null : (remainingNeeded <= 0 ? 0 : (remainingDays > 0 ? (remainingNeeded / remainingDays) : null));
+        return {
+          store,
+          machine,
+          vendor,
+          monthlyFee: target.fee,
+          goLiveDate: master.goLiveDate || '',
+          dailyTarget: target.dailyTarget,
+          dailyBreakeven: target.dailyBreakeven,
+          breakevenHours: target.robot,
+          monthlyTarget: target.targetRobot,
+          monthlyActual: monthActual,
+          achievement: rate,
+          dailyActual: dayActual,
+          dailyGap: machine ? (dayActual - target.dailyTarget) : 0,
+          monthlyGap: machine ? (monthActual - target.targetRobot) : 0,
+          savedHumanHours,
+          savingYen,
+          humanCostYen: savingYen,
+          netEffectYen,
+          costRecovery,
+          remainingDays,
+          remainingNeeded,
+          neededPerDay,
+          lastReason: lastDay && dayMap[lastDay].reasons.length ? dayMap[lastDay].reasons.slice(-1)[0] : '',
+          lastComment: lastDay && dayMap[lastDay].comments.length ? dayMap[lastDay].comments.slice(-1)[0] : '',
+          lastStatus: machine ? (lastDay ? dayMap[lastDay].status : '未入力') : status,
+          dailySeries: days.map(d => ({ date: d, actual: dayMap[d].actual, target: target.dailyTarget }))
+        };
+      }).sort((a, b) => {
+        const cancelledA = isContractCancelled(a.store, month) ? 1 : 0;
+        const cancelledB = isContractCancelled(b.store, month) ? 1 : 0;
+        if (cancelledA !== cancelledB) return cancelledA - cancelledB;
+        const rateDiff = b.achievement - a.achievement;
+        if (Math.abs(rateDiff) > 0.0001) return rateDiff;
+        const orderDiff = storeSortIndex(a.store) - storeSortIndex(b.store);
+        return orderDiff !== 0 ? orderDiff : a.store.localeCompare(b.store, 'ja');
+      });
+    }
+
+    function renderUploadLog() {
+      const body = document.getElementById('uploadLogBody');
+      body.innerHTML = state.uploads.map(u => `<tr><td>${u.importedAt}</td><td>${u.fileName}</td><td>${u.format}</td><td>${u.count}</td><td>${u.note || ''}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">履歴なし</td></tr>';
+    }
+
+    function renderStoreInputList() {
+      const body = document.getElementById('storeInputBody');
+      const rows = [...state.storeInputs]
+        .filter(r => (r.status && r.status !== '正常') || (r.maintenanceJudge && r.maintenanceJudge !== '問題なし') || r.maintenanceNote || r.maintenanceItems)
+        .sort((a, b) => (String(b.taskDate || '') + b.storeName).localeCompare(String(a.taskDate || '') + a.storeName));
+      body.innerHTML = rows.map(r => `<tr><td>${r.taskDate}</td><td>${r.storeName}</td><td>${r.status || '—'}</td><td>${r.maintenanceJudge || r.reason || '—'}</td><td>${r.maintenanceNote || '—'}</td><td>${r.maintenanceItems || '—'}</td><td class="small muted">${r.maintenanceSheet || '—'}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">未実施・要対応はありません。</td></tr>';
+    }
+
+    function availableStores() {
+      return [...new Set([
+        ...(state.storeMaster || []).map(s => canonicalStoreName(s.storeName)),
+        ...(state.storeInputs || []).map(s => canonicalStoreName(s.storeName)),
+        ...(state.robotTasks || []).map(t => canonicalStoreName(t.storeName)),
+        ...(state.manualIssues || []).map(i => canonicalStoreName(i.storeName))
+      ].filter(Boolean))].sort((a, b) => {
+        const diff = storeSortIndex(a) - storeSortIndex(b);
+        return diff !== 0 ? diff : a.localeCompare(b, 'ja');
+      });
+    }
+
+    function renderManualIssueForm() {
+      const storeSelect = document.getElementById('manualIssueStore');
+      if (!storeSelect) return;
+      const currentValue = storeSelect.value;
+      const stores = availableStores();
+      storeSelect.innerHTML = stores.map(store => `<option value="${store}">${storeOrderLabel(store)} ${store}</option>`).join('');
+      if (currentValue && stores.includes(currentValue)) storeSelect.value = currentValue;
+      if (!storeSelect.value && stores.length) storeSelect.value = stores[0];
+      const dateInput = document.getElementById('manualIssueDate');
+      const monthInput = document.getElementById('monthFilter');
+      if (dateInput && !dateInput.value) {
+        const today = new Date();
+        const todayMonth = today.toISOString().slice(0, 7);
+        const selectedMonth = monthInput && monthInput.value ? monthInput.value : '';
+        if (selectedMonth) {
+          const selectedDay = selectedMonth === todayMonth ? today.getDate() : 1;
+          dateInput.value = `${selectedMonth}-${String(selectedDay).padStart(2, '0')}`;
+        } else {
+          dateInput.value = today.toISOString().slice(0, 10);
+        }
+      }
+    }
+
+    function handleManualIssueSave() {
+      const issueDate = document.getElementById('manualIssueDate').value;
+      const storeName = canonicalStoreName(document.getElementById('manualIssueStore').value);
+      const category = document.getElementById('manualIssueCategory').value;
+      const rawStatus = document.getElementById('manualIssueStatus').value;
+      const status = (category === '要望' || category === '意見') ? '受付' : rawStatus;
+      const detail = document.getElementById('manualIssueDetail').value.trim();
+      const comment = document.getElementById('manualIssueComment').value.trim();
+      const storeRequest = (document.getElementById('manualIssueStoreRequest') || {}).value || '';
+      const completionReason = (document.getElementById('manualIssueCompletionReason') || {}).value || '';
+      const result = document.getElementById('manualIssueResult');
+      if (!issueDate || !storeName || !detail) {
+        result.textContent = '発生日・店舗・不具合内容を入力してください。';
+        return;
+      }
+      state.manualIssues.unshift({
+        issueId: `manual-${Date.now()}`,
+        issueDate,
+        storeName,
+        category,
+        status,
+        detail,
+        comment,
+        storeRequest: storeRequest.trim(),
+        completionReason: completionReason.trim(),
+        source: '手入力'
+      });
+      state.uploads.unshift({ importedAt: new Date().toLocaleString('ja-JP'), fileName: `${storeName} 手入力`, format: 'manual-issue', count: 1, note: `${category}を直接登録` });
+      const issueMonth = monthKey(issueDate);
+      const monthInput = document.getElementById('monthFilter');
+      if (monthInput && issueMonth && monthInput.value !== issueMonth) monthInput.value = issueMonth;
+      saveState();
+      document.getElementById('manualIssueDetail').value = '';
+      document.getElementById('manualIssueComment').value = '';
+      const sr = document.getElementById('manualIssueStoreRequest');
+      if (sr) sr.value = '';
+      const cr = document.getElementById('manualIssueCompletionReason');
+      if (cr) cr.value = '';
+      const cw = document.getElementById('manualIssueCompletionWrap');
+      if (cw) cw.classList.add('hidden');
+      result.textContent = issueMonth && monthInput ? `${storeName} の ${category} を登録しました。${issueMonth} を表示しています。` : `${storeName} の ${category} を登録しました。`;
+      renderAll();
+    }
+
+    function syncManualIssueStatusByCategory() {
+      const categoryEl = document.getElementById('manualIssueCategory');
+      const statusEl = document.getElementById('manualIssueStatus');
+      const wrap = document.getElementById('manualIssueCompletionWrap');
+      if (!categoryEl || !statusEl) return;
+      const category = categoryEl.value;
+      const isRequestLike = category === '要望' || category === '意見';
+      const currentValue = statusEl.value;
+      const options = isRequestLike
+        ? [{ value: '受付', label: '受付' }]
+        : [
+            { value: '依頼済', label: '依頼済' },
+            { value: '対応中', label: '対応中' },
+            { value: '完了', label: '完了' }
+          ];
+      statusEl.innerHTML = options.map(opt => `<option value="${opt.value}">${opt.label}</option>`).join('');
+      statusEl.value = options.some(opt => opt.value === currentValue) ? currentValue : options[0].value;
+      if (wrap) wrap.classList.toggle('hidden', statusEl.value !== '完了');
+    }
+
+    document.addEventListener('change', function(e) {
+      if (e.target && e.target.id === 'manualIssueCategory') {
+        syncManualIssueStatusByCategory();
+      }
+      if (e.target && e.target.id === 'manualIssueStatus') {
+        const wrap = document.getElementById('manualIssueCompletionWrap');
+        if (wrap) wrap.classList.toggle('hidden', e.target.value !== '完了');
+      }
+    });
+
+    document.addEventListener('click', function(e) {
+      const trigger = e.target && e.target.closest ? e.target.closest('[data-jump-issue-id]') : null;
+      if (!trigger) return;
+      jumpToIssue(trigger.dataset.jumpIssueId || '', trigger.dataset.jumpIssueMonth || '');
+    });
+
+    function statusBadge(status) {
+      if (status === '達成' || status === '正常' || status === '問題なし' || status === '安定稼働') return '<span class="badge b-good">'+status+'</span>';
+      if (status === '受付' || status === 'あと少し' || status === '一部停止' || status === '機種未設定' || status === '経過観察' || /未実施/.test(status || '')) return '<span class="badge b-warn">'+status+'</span>';
+      return '<span class="badge b-bad">'+status+'</span>';
+    }
+
+    function normalizeIssueCategory(text, fallback = 'その他') {
+      const raw = String(text || '').trim();
+      if (!raw) return fallback;
+      if (/故障|不具合|修理|交換|破損|異音/.test(raw)) return '機体故障';
+      if (/充電|バッテ|電池/.test(raw)) return '充電・バッテリー';
+      if (/ルート|マップ|経路|位置/.test(raw)) return 'ルート・マップ';
+      if (/障害物|衝突|接触|荷物/.test(raw)) return '障害物・干渉';
+      if (/スタッフ|運用|操作/.test(raw)) return 'スタッフ運用';
+      if (/営業/.test(raw)) return '営業都合';
+      if (/清掃品質|品質|汚れ|清掃/.test(raw)) return '清掃品質';
+      if (/通信|接続|Wi-?Fi|ネット/.test(raw)) return '通信・接続';
+      return raw.length <= 18 ? raw : raw.slice(0, 18) + '…';
+    }
+
+    function renderSimpleTrendList(elementId, items, emptyText, suffix = '件') {
+      const el = document.getElementById(elementId);
+      el.innerHTML = items.length ? `<div class="trend-list">${items.map(item => `
+        <div class="trend-item">
+          <div>
+            <strong>${item.label}</strong>
+            <div class="mini-note">${item.note || ''}</div>
+          </div>
+          <div class="trend-count">${item.count}${suffix}</div>
+        </div>
+      `).join('')}</div>` : `<div class="muted small">${emptyText}</div>`;
+    }
+
+    function renderMaintenanceStatus(elementId, rows, stats = {}) {
+      const el = document.getElementById(elementId);
+      const rateText = stats.total ? pct(stats.completed / stats.total) : '—';
+      el.innerHTML = `
+        <div class="maintenance-rate-only">
+          <div class="maintenance-rate-label">メンテナンス実行率</div>
+          <div class="maintenance-rate-value">${rateText}</div>
+        </div>
+      `;
+    }
+
+    function renderOperationalInsights(month, summary) {
+      const issueRows = buildIssueHistory(month);
+      const latestStoreInputMap = new Map();
+      state.storeInputs
+        .filter(i => monthKey(i.taskDate) === month)
+        .sort((a, b) => String(b.taskDate || '').localeCompare(String(a.taskDate || '')))
+        .forEach(i => {
+          const key = canonicalStoreName(i.storeName);
+          if (!latestStoreInputMap.has(key)) latestStoreInputMap.set(key, i);
+        });
+      const latestRobotIssueMap = new Map();
+      state.robotTasks
+        .filter(t => t.month === month)
+        .filter(t => (t.jobStatus && t.jobStatus !== 'タスクの完了') || t.reason)
+        .sort((a, b) => String(b.taskDate || '').localeCompare(String(a.taskDate || '')))
+        .forEach(t => {
+          const key = canonicalStoreName(t.storeName);
+          if (!latestRobotIssueMap.has(key)) latestRobotIssueMap.set(key, t);
+        });
+
+      // 未達理由：メンテ履歴（店舗入力）から取得
+      const underMap = new Map();
+      summary.filter(s => s.achievement < 1).forEach(s => {
+        const storeInput = latestStoreInputMap.get(s.store);
+        const reasonText = storeInput
+          ? [storeInput.reason, storeInput.maintenanceJudge, storeInput.comment].filter(v => v && !/^(正常|問題なし)$/.test(v)).join(' / ') || '理由未入力'
+          : '理由未入力';
+        const label = reasonText.length > 20 ? reasonText.slice(0, 20) + '…' : reasonText;
+        const entry = underMap.get(label) || { label, count: 0, stores: [] };
+        entry.count += 1;
+        entry.stores.push(s.store);
+        underMap.set(label, entry);
+      });
+      const underItems = Array.from(underMap.values())
+        .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, 'ja'))
+        .slice(0, 5)
+        .map(x => ({ label: x.label, count: x.count, note: x.stores.slice(0, 3).join(' / ') }));
+      renderSimpleTrendList('underachievementTrend', underItems, '未達理由の記録はまだありません。', '店');
+
+      // 故障・不具合の傾向：手入力故障履歴のみから集計
+      const manualIssuesAll = (state.manualIssues || []).filter(i => !month || monthKey(i.issueDate) === month);
+      const failureMap = new Map();
+      manualIssuesAll.forEach(r => {
+        const label = normalizeIssueCategory(r.detail || '', 'その他');
+        const entry = failureMap.get(label) || { label, count: 0, stores: new Set() };
+        entry.count += 1;
+        entry.stores.add(canonicalStoreName(r.storeName));
+        failureMap.set(label, entry);
+      });
+      const failureItems = Array.from(failureMap.values())
+        .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, 'ja'))
+        .slice(0, 5)
+        .map(x => ({ label: x.label, count: x.count, note: `${x.stores.size}店舗で発生` }));
+      renderSimpleTrendList('failureTrend', failureItems, '故障・不具合の記録はまだありません。');
+
+      const maintenanceLogs = state.storeInputs.filter(i => monthKey(i.taskDate) === month);
+      const maintenanceStats = {
+        total: maintenanceLogs.length,
+        completed: maintenanceLogs.filter(i => (i.maintenanceJudge || i.status) === '問題なし' || i.status === '正常').length
+      };
+      const maintenanceRows = summary.map(s => {
+        const related = issueRows.filter(r => r.storeName === s.store);
+        const latest = related[0];
+        const latestText = latest ? [latest.status, latest.detail, latest.comment].filter(Boolean).join(' / ') : '';
+        const latestCategory = normalizeIssueCategory(latestText, '');
+        let status = '安定稼働';
+        if ((latest && /未稼働/.test(latest.status || '')) || ['機体故障', '充電・バッテリー', '通信・接続'].includes(latestCategory)) {
+          status = '要対応';
+        } else if (related.length || s.achievement < 1) {
+          status = '経過観察';
+        }
+        return {
+          store: s.store,
+          status,
+          note: latest ? latestText : (s.achievement < 1 ? '未達だが理由記録なし' : '当月の異常記録なし')
+        };
+      }).sort((a, b) => {
+        const order = { '要対応': 0, '経過観察': 1, '安定稼働': 2 };
+        const diff = (order[a.status] ?? 9) - (order[b.status] ?? 9);
+        if (diff !== 0) return diff;
+        return storeSortIndex(a.store) - storeSortIndex(b.store);
+      });
+      renderMaintenanceStatus('maintenanceStatus', maintenanceRows, maintenanceStats);
+    }
+
+    function buildIssueHistory(month) {
+      // 故障履歴は手入力のみ（月フィルターなし：全期間対象）
+      return (state.manualIssues || [])
+        .filter(i => !month || monthKey(i.issueDate) === month)
+        .map(i => ({
+          issueId: i.issueId || '',
+          issueDate: i.issueDate || '',
+          storeName: canonicalStoreName(i.storeName),
+          category: i.category || '手入力',
+          status: i.status || '依頼済',
+          detail: i.detail || '',
+          comment: [i.comment || '', i.completionReason || ''].filter(Boolean).join(' / '),
+          storeRequest: i.storeRequest || '',
+          source: '手入力'
+        }))
+        .sort((a, b) => {
+          const dateDiff = String(b.issueDate || '').localeCompare(String(a.issueDate || ''));
+          if (dateDiff !== 0) return dateDiff;
+          return storeSortIndex(a.storeName) - storeSortIndex(b.storeName);
+        });
+    }
+
+    function renderIssueHistory(month) {
+      const body = document.getElementById('issueHistoryBody');
+      const rows = buildIssueHistory(month);
+      body.innerHTML = rows.map(r => `
+        <tr data-issue-id="${r.issueId || ''}">
+          <td>${r.issueDate || '—'}</td>
+          <td>${r.storeName || '—'}</td>
+          <td>${r.category}</td>
+          <td>${r.detail || '—'}</td>
+          <td>${r.comment || '—'}</td>
+          <td>${r.storeRequest || '—'}</td>
+          <td class="small muted">${r.source || '—'}</td>
+        </tr>
+      `).join('') || '<tr><td colspan="7" class="muted">当月の故障・不具合履歴はありません。</td></tr>';
+    }
+
+    function renderNewIssueSummary(month) {
+      const wrap = document.getElementById('newIssueSummary');
+      if (!wrap) return;
+      const rows = buildIssueHistory(month)
+        .slice()
+        .sort((a, b) => String(b.issueDate || '').localeCompare(String(a.issueDate || '')))
+        .slice(0, 5);
+      if (!rows.length) {
+        wrap.innerHTML = '<div class="small muted">新規の故障・要望はありません。</div>';
+        return;
+      }
+      wrap.innerHTML = `
+        <div class="summary-jump-heading">新規の故障・要望</div>
+        <div class="summary-jump-list">${rows.slice(0, 4).map(r => {
+          const kind = r.category || (r.storeRequest ? '要望・意見' : '故障・不具合');
+          const detail = r.storeRequest || r.detail || r.comment || '内容未入力';
+          return `<button type="button" class="summary-jump-item" data-jump-issue-id="${r.issueId || ''}" data-jump-issue-month="${monthKey(r.issueDate) || month || ''}" title="${r.issueDate || ''} ${r.storeName || ''} ${kind} ${detail}">
+            <span class="summary-inline-store">${r.storeName || '店舗未設定'}</span>
+            <span class="summary-inline-kind">${kind}</span>
+            <span class="summary-inline-text">${detail}</span>
+          </button>`;
+        }).join('')}</div>
+      `;
+    }
+
+    function jumpToIssue(issueId, issueMonth) {
+      if (!issueId) return;
+      const monthInput = document.getElementById('monthFilter');
+      if (monthInput && issueMonth && monthInput.value !== issueMonth) {
+        monthInput.value = issueMonth;
+        renderDashboard();
+      }
+      const issueSection = document.getElementById('issueHistorySection');
+      if (issueSection) issueSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setTimeout(() => {
+        const row = document.querySelector(`[data-issue-id="${issueId}"]`);
+        if (!row) return;
+        row.classList.add('issue-highlight');
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => row.classList.remove('issue-highlight'), 2500);
+      }, 150);
+    }
+
+    function compactStoreCardHeaders() {
+      return;
+    }
+
+    function renderDashboard() {
+      let month = document.getElementById('monthFilter').value;
+      if (!month) {
+        const months = [...new Set(state.robotTasks.map(t => t.month).concat(state.storeInputs.map(s => monthKey(s.taskDate))).concat((state.manualIssues || []).map(i => monthKey(i.issueDate))))].filter(Boolean).sort();
+        month = months[months.length - 1] || new Date().toISOString().slice(0,7);
+        document.getElementById('monthFilter').value = month;
+      }
+      const adminFinanceMonthInput = document.getElementById('adminFinanceMonth');
+      if (adminFinanceMonthInput && !adminFinanceMonthInput.value) adminFinanceMonthInput.value = month;
+      const summary = aggregateMonthSummary(month);
+      document.getElementById('summaryNote').innerHTML = `表示指標は<strong>選択中の月ベース</strong>です。<strong>目標時間</strong>は設定済み条件と<strong>月${num(state.settings.monthDays, 1)}日</strong>の前提で自動計算しています。<strong>当月残日数</strong>は暦日ベースで計算します。費用情報は管理画面側のみに表示します。新規の故障・要望は下のサマリーからクリックすると履歴へ移動できます。`;
+      document.getElementById('kpiStores').textContent = summary.length;
+      document.getElementById('kpiRate').textContent = summary.length ? pct(summary.reduce((s,x)=>s+x.achievement,0)/summary.length) : '0%';
+      document.getElementById('kpiShort').textContent = summary.filter(x => x.achievement < 1).length;
+      document.getElementById('kpiMonth').textContent = month;
+
+      const cards = document.getElementById('storeCards');
+      cards.innerHTML = summary.map(s => `
+        <div class="store-card ${monthAwareCardClass(s, month)}">
+          <div class="store-card-header">
+            <div class="store-card-heading">
+              <div class="brand-badges">
+                ${displayVendorLabel(s) ? `<span class="${vendorBadgeClass(s)}">${displayVendorLabel(s)}</span>` : '<span></span>'}
+                <span class="${machineBadgeClass(s)}">${displayMachineLabel(s)}</span>
+                ${statusBadge(s.achievement >= 1 ? '達成' : s.achievement >= 0.8 ? 'あと少し' : '未達')}
+              </div>
+              <div class="store-title-row"><span class="store-order-inline">${storeOrderLabel(s.store)}</span><div class="store-title">${s.store}</div></div>
+            </div>
+          </div>
+          <div class="progress"><div style="width:${Math.min(s.achievement*100,100)}%"></div></div>
+          <div class="store-metrics">
+            <div class="metric-line ${s.machine ? 'neutral' : 'neutral'}"><span class="metric-label">目標</span><span class="metric-value">${s.machine ? num(s.monthlyTarget) + ' 時間' : '—'}</span></div>
+            <div class="metric-line ${s.machine ? (achievementChipClass(s.achievement).split(' ').pop() || 'neutral') : 'neutral'}"><span class="metric-label">達成率</span><span class="metric-value">${s.machine ? pct(s.achievement) : '—'}</span></div>
+            <div class="metric-line ${s.machine ? 'neutral' : 'neutral'}"><span class="metric-label">実績</span><span class="metric-value">${s.machine ? num(s.monthlyActual) + ' 時間' : '—'}</span></div>
+            <div class="metric-line ${s.machine ? (gapChipClass(s.monthlyGap).split(' ').pop() || 'neutral') : 'neutral'}"><span class="metric-label">目標差異</span><span class="metric-value">${s.machine ? num(s.monthlyGap) + ' 時間' : '—'}</span></div>
+            <div class="metric-line span-2 ${s.machine ? (remainingChipClass(s.remainingNeeded).split(' ').pop() || 'neutral') : 'neutral'}"><span class="metric-label">目標まで残り</span><span class="metric-value">${s.machine ? num(s.remainingNeeded) + ' 時間' : '—'}</span></div>
+          </div>
+          ${isContractCancelled(s.store, month) ? '<div class="contract-note">契約解除中 ／ DFA機器 導入検討中</div>' : ''}
+        </div>
+      `).join('') || '<div class="muted">データがありません。</div>';
+
+      const tbody = document.getElementById('summaryTbody');
+      tbody.innerHTML = summary.map(s => `
+        <tr>
+          <td>${s.store}</td>
+          <td>${displayVendorLabel(s) ? displayVendorLabel(s) + ' / ' : ''}${displayMachineLabel(s)}</td>
+          <td class="right">${s.machine ? num(s.breakevenHours) : '—'}</td>
+          <td class="right">${s.machine ? num(s.monthlyTarget) : '—'}</td>
+          <td class="right">${num(s.monthlyActual)}</td>
+          <td class="right" style="color:${!s.machine ? 'var(--sub)' : (s.monthlyGap >= 0 ? 'var(--good)' : 'var(--bad)')};">${s.machine ? num(s.monthlyGap) : '—'}</td>
+          <td class="right">${s.machine ? pct(s.achievement) : '—'}</td>
+          <td class="right">${s.remainingDays}日</td>
+          <td class="right">${s.machine ? num(s.remainingNeeded) : '—'}</td>
+          <td class="right">${s.neededPerDay === null ? '—' : num(s.neededPerDay)}</td>
+        </tr>
+      `).join('') || '<tr><td colspan="10" class="muted">データがありません。</td></tr>';
+
+      const financeMonth = (document.getElementById('adminFinanceMonth') || {}).value || month;
+      renderFinanceSummary(financeMonth);
+      compactStoreCardHeaders();
+      renderOperationalInsights(month, summary);
+      renderIssueHistory(month);
+      renderNewIssueSummary(month);
+      renderStoreMachineSettings();
+    }
+
+    function renderCharts(summary, month) {
+      const chartSummary = summary.filter(s => s.machine);
+      const labels = chartSummary.map(s => s.store);
+      const actuals = chartSummary.map(s => Number(s.monthlyActual.toFixed(2)));
+      const targets = chartSummary.map(s => Number(s.monthlyTarget.toFixed(2)));
+
+      if (storeChart) storeChart.destroy();
+      storeChart = new Chart(document.getElementById('storeChart'), {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+            { label: '月間実績', data: actuals, backgroundColor: '#2f6c9f' },
+            { label: '月間目標', data: targets, backgroundColor: '#d97706' }
+          ]
+        },
+        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
+      });
+
+      const merged = {};
+      chartSummary.forEach(s => s.dailySeries.forEach(d => {
+        if (!merged[d.date]) merged[d.date] = { actual: 0, target: 0 };
+        merged[d.date].actual += d.actual;
+        merged[d.date].target += d.target;
+      }));
+      const dLabels = Object.keys(merged).sort();
+      const dActual = dLabels.map(k => Number((merged[k].actual || 0).toFixed(2)));
+      const dTarget = dLabels.map(k => Number((merged[k].target || 0).toFixed(2)));
+
+      if (dailyChart) dailyChart.destroy();
+      dailyChart = new Chart(document.getElementById('dailyChart'), {
+        type: 'line',
+        data: {
+          labels: dLabels,
+          datasets: [
+            { label: '日別実績', data: dActual, borderColor: '#1f4e78', backgroundColor: 'rgba(31,78,120,0.12)', tension: 0.25, fill: true },
+            { label: '日別目標', data: dTarget, borderColor: '#d97706', backgroundColor: 'rgba(217,119,6,0.10)', tension: 0.25, fill: false }
+          ]
+        },
+        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
+      });
+    }
+
+    function renderFinanceSummary(month) {
+      const financeMonth = month || document.getElementById('monthFilter').value || new Date().toISOString().slice(0,7);
+      const financeMonthInput = document.getElementById('adminFinanceMonth');
+      if (financeMonthInput && financeMonthInput.value !== financeMonth) financeMonthInput.value = financeMonth;
+      const summary = aggregateMonthSummary(financeMonth);
+      const body = document.getElementById('financeSummaryTbody');
+      if (!body) return;
+      body.innerHTML = summary.map(s => `
+        <tr>
+          <td>${s.store}</td>
+          <td>${displayVendorLabel(s) ? displayVendorLabel(s) + ' / ' : ''}${displayMachineLabel(s)}</td>
+          <td class="right">${s.monthlyFee ? yen(s.monthlyFee) : '—'}</td>
+          <td class="right">${s.machine ? num(s.breakevenHours) : '—'}</td>
+          <td class="right">${s.machine ? num(s.monthlyTarget) : '—'}</td>
+          <td class="right">${s.machine ? num(s.monthlyActual) : '—'}</td>
+          <td class="right">${s.monthlyFee ? yen(s.humanCostYen) : '—'}</td>
+          <td class="right" style="color:${s.monthlyFee ? (s.netEffectYen >= 0 ? 'var(--good)' : 'var(--bad)') : 'var(--sub)'};">${s.monthlyFee ? yen(s.netEffectYen) : '—'}</td>
+          <td>${statusBadge(s.achievement >= 1 ? '達成' : s.achievement >= 0.8 ? 'あと少し' : '未達')}</td>
+        </tr>
+      `).join('') || '<tr><td colspan="9" class="muted">データがありません。</td></tr>';
+    }
+
+    function renderSettings() {
+      state.settings.hourlyCost = Number(state.settings.hourlyCost) || 1200;
+      state.settings.monthDays = Number(state.settings.monthDays) || 30.4;
+      state.settings.ratioHours = Number(state.settings.ratioHours) || 3;
+      state.settings.fees.DFA_Phantas = Number(state.settings.fees.DFA_Phantas) || 47000;
+      state.settings.fees.DFA_C40 = Number(state.settings.fees.DFA_C40) || 48000;
+      state.settings.fees.AIM = Number(state.settings.fees.AIM) || 62000;
+      state.settings.adminPassword = String(state.settings.adminPassword || 'admin');
+      document.getElementById('hourlyCost').value = state.settings.hourlyCost;
+      document.getElementById('monthDays').value = state.settings.monthDays;
+      document.getElementById('ratioRobotMinutes').value = robotMinutesFromRatio(state.settings.ratioHours);
+      document.getElementById('ratioHumanMinutes').value = humanMinutesFromRatio(state.settings.ratioHours);
+      document.getElementById('feePhantas').value = state.settings.fees.DFA_Phantas;
+      document.getElementById('feeC40').value = state.settings.fees.DFA_C40;
+      document.getElementById('feeAim').value = state.settings.fees.AIM;
+      document.getElementById('adminPassword').value = state.settings.adminPassword;
+      const adminFinanceMonthInput = document.getElementById('adminFinanceMonth');
+      const dashboardMonth = (document.getElementById('monthFilter') || {}).value;
+      if (adminFinanceMonthInput && !adminFinanceMonthInput.value) {
+        adminFinanceMonthInput.value = dashboardMonth || new Date().toISOString().slice(0,7);
+      }
+      renderStoreMachineSettings();
+      renderFinanceSummary((adminFinanceMonthInput || {}).value || dashboardMonth || new Date().toISOString().slice(0,7));
+    }
+
+    function renderStoreMachineSettings() {
+      const allStores = [...new Set(
+        (state.storeMaster || []).map(s => s.storeName)
+          .concat(state.robotTasks.map(t => t.storeName))
+          .concat(state.storeInputs.map(s => s.storeName))
+      )].sort((a,b) => storeSortIndex(a) - storeSortIndex(b) || a.localeCompare(b,'ja'));
+      const wrap = document.getElementById('storeMachineSettings');
+      if (!allStores.length) { wrap.innerHTML = '<div class="muted small">店舗データがまだありません。</div>'; return; }
+      wrap.innerHTML = `
+        <div style="display:grid;grid-template-columns:minmax(80px,1fr) 1fr 1fr minmax(80px,1fr) 1fr 80px;gap:6px;align-items:center;font-size:12px;font-weight:700;color:var(--sub);padding-bottom:6px;border-bottom:1px solid var(--line);">
+          <div>店舗名</div><div>業者</div><div>機種</div><div>月額(円)</div><div>契約状態 / 適用開始月</div><div>表示</div>
+        </div>
+        ${allStores.map(store => {
+          const ss = storeSettingFor(store) || { vendor: vendorForStore(store), machine: machineForStore(store), fee: feeForStore(store), contractStatus: '契約中', cancelFrom: '', visible: true };
+          const sid = 'ss_' + store.replace(/[^a-z0-9]/gi,'_');
+          return `<div style="display:grid;grid-template-columns:minmax(80px,1fr) 1fr 1fr minmax(80px,1fr) 1fr 80px;gap:6px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line);" data-store="${store}">
+            <div style="font-weight:600;font-size:13px;">${store}</div>
+            <input type="text" list="vendorList" value="${ss.vendor||''}" data-field="vendor" data-sid="${sid}" style="padding:4px 6px;font-size:12px;" placeholder="DFA、エイム..." />
+            <input type="text" list="machineList" value="${ss.machine||''}" data-field="machine" data-sid="${sid}" style="padding:4px 6px;font-size:12px;" placeholder="Phantas、C40..." />
+            <input type="number" value="${ss.fee||''}" data-field="fee" data-sid="${sid}" style="padding:4px 6px;font-size:12px;" placeholder="47000" step="1" />
+            <div style="display:flex;gap:4px;align-items:center;">
+              <select data-field="contractStatus" data-sid="${sid}" style="padding:4px 4px;font-size:12px;flex:1;">
+                <option value="契約中" ${ss.contractStatus==='契約中'?'selected':''}>契約中</option>
+                <option value="契約解除" ${ss.contractStatus==='契約解除'?'selected':''}>契約解除</option>
+              </select>
+              <input type="month" value="${ss.cancelFrom||''}" data-field="cancelFrom" data-sid="${sid}" style="padding:4px 4px;font-size:12px;width:130px;" title="契約解除の適用開始月" />
+            </div>
+            <select data-field="displayMode" data-sid="${sid}" style="padding:4px 4px;font-size:12px;">
+              <option value="show" ${(ss.displayMode||storeDisplayMode(store))==='show'?'selected':''}>表示</option>
+              <option value="hide_after_cancel" ${(ss.displayMode||storeDisplayMode(store))==='hide_after_cancel'?'selected':''}>解除月から非表示</option>
+              <option value="hidden" ${(ss.displayMode||storeDisplayMode(store))==='hidden'?'selected':''}>常に非表示</option>
+            </select>
+          </div>`;
+        }).join('')}
+      `;
+    }
+
+    function saveStoreMaster() {
+      const rows = document.querySelectorAll('#storeMachineSettings [data-store]');
+      rows.forEach(row => {
+        const store = row.getAttribute('data-store');
+        const key = canonicalStoreName(store);
+        const get = (field) => row.querySelector(`[data-field="${field}"]`);
+        const vendor = (get('vendor').value || '').trim();
+        const machine = (get('machine').value || '').trim();
+        const fee = Number(get('fee').value || 0);
+        const contractStatus = get('contractStatus').value;
+        const cancelFrom = (get('cancelFrom').value || '').trim();
+        const displayMode = get('displayMode').value || 'show';
+        const visible = displayMode !== 'hidden';
+        if (!state.settings.storeSettings) state.settings.storeSettings = {};
+        state.settings.storeSettings[key] = { vendor, machine, fee, contractStatus, cancelFrom, visible, displayMode };
+        if (vendor) state.settings.storeVendors[key] = vendor;
+        if (machine) state.settings.storeMachines[key] = machine;
+        if (fee) state.settings.storeFees[key] = fee;
+      });
+      saveState();
+      renderAll();
+      document.getElementById('storeMasterSaveResult').textContent = '保存しました';
+      setTimeout(() => { const el = document.getElementById('storeMasterSaveResult'); if(el) el.textContent=''; }, 2000);
+    }
+
+    function ensureAdminAccess() {
+      if (adminUnlocked) return true;
+      const pwd = window.prompt('管理者パスワードを入力してください');
+      if (pwd === null) return false;
+      if (String(pwd) === String((state.settings || {}).adminPassword || 'admin')) {
+        adminUnlocked = true;
+        return true;
+      }
+      alert('パスワードが違います');
+      return false;
+    }
+
+    function switchTab(tabId) {
+      if (window.switchTabFallback) {
+        window.switchTabFallback(tabId);
+        return;
+      }
+      if (tabId === 'settings' && !ensureAdminAccess()) return;
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tabId));
+      document.querySelectorAll('.tab').forEach(tab => tab.classList.toggle('active', tab.id === tabId));
+    }
+
+    async function handleRobotImport() {
+      const file = document.getElementById('robotFile').files[0];
+      if (!file) return alert('ファイルを選択してください');
+      const buf = await fileToArrayBuffer(file);
+      const wb = XLSX.read(buf, { type: 'array' });
+      const rows = workbookToRows(wb);
+      const format = detectFormat(rows);
+      let tasks = [];
+      if (format === 'taskreport') tasks = parseTaskReport(rows, file.name);
+      if (format === 'c40-detail') tasks = parseC40Detail(rows, file.name);
+      if (!tasks.length) {
+        document.getElementById('robotImportResult').textContent = '取り込みできませんでした。対応外形式の可能性があります。';
+        return;
+      }
+      upsertTasks(tasks, format, file.name);
+      document.getElementById('robotImportResult').innerHTML = `取込完了：<strong>${file.name}</strong> / 形式 <strong>${format}</strong> / <strong>${tasks.length}</strong>件`;
+      renderAll();
+    }
+
+    async function handleStoreImport() {
+      const file = document.getElementById('storeFile').files[0];
+      if (!file) return alert('ファイルを選択してください');
+      const buf = await fileToArrayBuffer(file);
+      const wb = XLSX.read(buf, { type: 'array' });
+      const inputs = parseMaintenanceWorkbook(wb, file.name);
+      if (!inputs.length) {
+        document.getElementById('storeImportResult').textContent = '取り込みできませんでした。メンテ履歴フォーマットを確認してください。';
+        return;
+      }
+      upsertStoreInputs(inputs, file.name);
+      document.getElementById('storeImportResult').innerHTML = `取込完了：<strong>${file.name}</strong> / <strong>${inputs.length}</strong>件`;
+      renderAll();
+    }
+
+    function saveSettings() {
+      state.settings.hourlyCost = Number(document.getElementById('hourlyCost').value || 1200);
+      state.settings.monthDays = Number(document.getElementById('monthDays').value || 30.4);
+      const ratioRobotMinutes = Number(document.getElementById('ratioRobotMinutes').value || 30);
+      const ratioHumanMinutes = Number(document.getElementById('ratioHumanMinutes').value || 10);
+      state.settings.ratioHours = ratioHumanMinutes > 0 ? (ratioRobotMinutes / ratioHumanMinutes) : 3;
+      state.settings.fees.DFA_Phantas = Number(document.getElementById('feePhantas').value || 47000);
+      state.settings.fees.DFA_C40 = Number(document.getElementById('feeC40').value || 48000);
+      state.settings.fees.AIM = Number(document.getElementById('feeAim').value || 62000);
+      state.settings.adminPassword = String(document.getElementById('adminPassword').value || 'admin');
+      saveState();
+      renderAll();
+      alert('設定を保存しました');
+    }
+
+    function clearAllData() {
+      if (!confirm('全データを削除します。よろしいですか？')) return;
+      state = JSON.parse(JSON.stringify(defaultState));
+      ['阪神西宮店','天王寺店','阪急中通店'].forEach(store => state.settings.storeFees[store] = state.settings.fees.DFA_Phantas);
+      ['オールナイト関大前店','十三本町店','北九州店'].forEach(store => state.settings.storeFees[store] = state.settings.fees.DFA_C40);
+      ['枚方店','5秒','江坂','宗右衛門','芝田町','茶屋町'].forEach(store => state.settings.storeFees[store] = state.settings.fees.AIM || 62000);
+      saveState();
+      renderAll();
+    }
+
+    function loadSample() {
+      state.robotTasks = [
+        { taskId: 'sample1', sourceType:'taskreport', sourceFile:'sample', taskDate:'2026-05-19', month:'2026-05', storeName:'阪神西宮店', floorName:'1F', robotSerialNo:'SN001', robotDisplayName:'阪神西宮店', startAt:'2026-05-19 11:12:35', endAt:'2026-05-19 11:27:43', runtimeHours:0.18, completionRate:68.3, plannedArea:92.46, actualArea:60.2, productivity:320, jobStatus:'タスクの完了', taskType:'洗浄', reason:'' },
+        { taskId: 'sample2', sourceType:'taskreport', sourceFile:'sample', taskDate:'2026-05-20', month:'2026-05', storeName:'阪神西宮店', floorName:'2F', robotSerialNo:'SN001', robotDisplayName:'阪神西宮店', startAt:'2026-05-20 12:00:00', endAt:'2026-05-20 15:40:00', runtimeHours:3.67, completionRate:90, plannedArea:90, actualArea:84, productivity:280, jobStatus:'タスクの完了', taskType:'洗浄', reason:'' },
+        { taskId: 'sample3', sourceType:'c40-detail', sourceFile:'sample', taskDate:'2026-05-20', month:'2026-05', storeName:'北九州店', floorName:'', robotSerialNo:'SN002', robotDisplayName:'北九州店', startAt:'2026-05-20 23:30:00', endAt:'2026-05-21 03:20:00', runtimeHours:3.83, completionRate:94, plannedArea:130, actualArea:130.6, productivity:380, jobStatus:'タスクの完了', taskType:'洗浄', reason:'清掃成功' }
+      ];
+      state.storeInputs = [
+        { sourceFile:'sample', sourceType:'maintenance-history', taskDate:'2026-05-20', storeName:'阪神西宮店', status:'一部停止', reason:'未実施あり', comment:'未実施項目 フロントローラーブラシ / リアローラーブラシ', reclean:'', additionalMinutes:0, manualRuntimeHours:0, maintenanceJudge:'未実施あり', maintenanceNote:'', maintenanceItems:'フロントローラーブラシ / リアローラーブラシ', maintenanceSheet:'阪神西宮' },
+        { sourceFile:'sample', sourceType:'maintenance-history', taskDate:'2026-05-20', storeName:'ジ・アウトレット北九州店', status:'正常', reason:'', comment:'', reclean:'', additionalMinutes:0, manualRuntimeHours:0, maintenanceJudge:'問題なし', maintenanceNote:'', maintenanceItems:'', maintenanceSheet:'北九州' }
+      ];
+      state.manualIssues = [
+        { issueId:'sample-issue-2', issueDate:'2026-06-02', storeName:'十三本町店', category:'意見', status:'受付', detail:'詳細の全ては確認取れておりませんが一部の意見を共有しておきます。', comment:'', storeRequest:'・汚れが取れきれず2度手間になる。 / ・角などでカーブする際に本体がすれているのか逆に汚してしまう。', source:'手入力' },
+        { issueId:'sample-issue-1', issueDate:'2026-05-21', storeName:'阪神西宮店', category:'故障', status:'対応中', detail:'充電エラーで途中停止', comment:'バッテリー接点を確認中', storeRequest:'夜間帯に停止が増えているため原因確認を希望', source:'手入力' }
+      ];
+      state.settings.storeMachines = { '阪神西宮店':'C40', '北九州店':'C40' };
+      state.uploads.unshift({ importedAt: new Date().toLocaleString('ja-JP'), fileName:'sample', format:'sample', count:5, note:'サンプル投入' });
+      saveState();
+      renderAll();
+    }
+
+    function renderAll() {
+      renderUploadLog();
+      renderStoreInputList();
+      renderManualIssueForm();
+      syncManualIssueStatusByCategory();
+      renderSettings();
+      renderDashboard();
+    }
+
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
+    const adminFinanceMonthInput = document.getElementById('adminFinanceMonth');
+    if (adminFinanceMonthInput) {
+      adminFinanceMonthInput.addEventListener('change', () => renderFinanceSummary(adminFinanceMonthInput.value || document.getElementById('monthFilter').value));
+    }
+    document.getElementById('robotImportBtn').addEventListener('click', handleRobotImport);
+    document.getElementById('storeImportBtn').addEventListener('click', handleStoreImport);
+    document.getElementById('manualIssueSaveBtn').addEventListener('click', handleManualIssueSave);
+    document.getElementById('saveSettingsBtn').addEventListener('click', saveSettings);
+    document.getElementById('saveStoreMasterBtn').addEventListener('click', saveStoreMaster);
+    document.getElementById('clearDataBtn').addEventListener('click', clearAllData);
+    document.getElementById('loadSampleBtn').addEventListener('click', loadSample);
+    document.getElementById('monthFilter').addEventListener('change', renderDashboard);
+    window.addEventListener('resize', compactStoreCardHeaders);
+
+    renderAll();
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./service-worker.js').catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>
