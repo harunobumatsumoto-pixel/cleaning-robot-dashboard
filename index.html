@@ -276,6 +276,10 @@
           <h3>故障・不具合・要望・意見履歴</h3>
           <div class="small muted">手入力した故障・不具合・要望・意見を一覧化します</div>
         </div>
+        <div class="row" style="margin-top:10px; gap:10px; align-items:center;">
+          <button type="button" class="btn-ghost" id="exportIssueAnalysisBtn">分析用Excel出力</button>
+          <div class="small muted">対象月の未完了一覧・日付別集計・店舗別集計・全件履歴・実績一覧を出力</div>
+        </div>
         <div class="note small" style="margin-top:12px;">
           <strong>故障・不具合を直接入力</strong>
           <div class="issue-form-grid">
@@ -1965,6 +1969,85 @@
         });
     }
 
+    function isClosedIssueStatus(category, status) {
+      const value = String(status || '').trim();
+      if (issueKindFromCategory(category) === 'request') {
+        return ['完了', '既読', '受領'].includes(value);
+      }
+      return value === '完了';
+    }
+
+    function exportIssueAnalysisWorkbook() {
+      let month = (document.getElementById('monthFilter') || {}).value || '';
+      if (!month) {
+        const months = [...new Set(state.robotTasks.map(t => t.month).concat(state.storeInputs.map(s => monthKey(s.taskDate))).concat((state.manualIssues || []).map(i => monthKey(i.issueDate))))].filter(Boolean).sort();
+        month = months[months.length - 1] || new Date().toISOString().slice(0,7);
+      }
+      const rows = buildIssueHistory(month);
+      const openRows = rows.filter(r => !isClosedIssueStatus(r.category, r.status));
+      const dateMap = new Map();
+      rows.forEach(r => {
+        const key = r.issueDate || '未設定';
+        const entry = dateMap.get(key) || { '発生日': key, '総件数': 0, '未完了件数': 0, '完了件数': 0, '故障・不具合件数': 0, '要望・意見件数': 0 };
+        entry['総件数'] += 1;
+        if (isClosedIssueStatus(r.category, r.status)) entry['完了件数'] += 1;
+        else entry['未完了件数'] += 1;
+        if (issueKindFromCategory(r.category) === 'request') entry['要望・意見件数'] += 1;
+        else entry['故障・不具合件数'] += 1;
+        dateMap.set(key, entry);
+      });
+      const storeMap = new Map();
+      rows.forEach(r => {
+        const key = r.storeName || '未設定';
+        const entry = storeMap.get(key) || { '店舗': key, '総件数': 0, '未完了件数': 0, '完了件数': 0, '故障・不具合件数': 0, '要望・意見件数': 0 };
+        entry['総件数'] += 1;
+        if (isClosedIssueStatus(r.category, r.status)) entry['完了件数'] += 1;
+        else entry['未完了件数'] += 1;
+        if (issueKindFromCategory(r.category) === 'request') entry['要望・意見件数'] += 1;
+        else entry['故障・不具合件数'] += 1;
+        storeMap.set(key, entry);
+      });
+      const summaryRows = aggregateMonthSummary(month).map(s => ({
+        '店舗': s.store,
+        '業者': s.vendor || '',
+        '機種': s.machine || '',
+        '目標時間': s.machine ? num(s.monthlyTarget) : '',
+        '実績時間': s.machine ? num(s.monthlyActual) : '',
+        '達成率': s.machine ? pct(s.achievement) : '',
+        '目標差異': s.machine ? num(s.monthlyGap) : '',
+        '目標まで残り': s.machine ? num(s.remainingNeeded) : '',
+        '最新状況': s.lastStatus || '',
+        '最新コメント': s.lastComment || ''
+      }));
+      const wb = XLSX.utils.book_new();
+      const appendSheet = (name, data) => {
+        const ws = XLSX.utils.json_to_sheet(data.length ? data : [{ 'データなし': '' }]);
+        XLSX.utils.book_append_sheet(wb, ws, name);
+      };
+      appendSheet('未完了一覧', openRows.map(r => ({
+        '発生日': r.issueDate,
+        '店舗': r.storeName,
+        '区分': r.category,
+        '状況': r.status,
+        '内容': r.detail,
+        '店舗要望': r.storeRequest,
+        '対応・完了原因': r.comment
+      })));
+      appendSheet('日付別集計', Array.from(dateMap.values()).sort((a, b) => String(b['発生日']).localeCompare(String(a['発生日']))));
+      appendSheet('店舗別集計', Array.from(storeMap.values()).sort((a, b) => b['未完了件数'] - a['未完了件数'] || b['総件数'] - a['総件数'] || String(a['店舗']).localeCompare(String(b['店舗']), 'ja')));
+      appendSheet('全件履歴', rows.map(r => ({
+        '発生日': r.issueDate,
+        '店舗': r.storeName,
+        '区分': r.category,
+        '状況': r.status,
+        '内容': r.detail,
+        '店舗要望': r.storeRequest,
+        '対応・完了原因': r.comment
+      })));
+      appendSheet('実績一覧', summaryRows);
+      XLSX.writeFile(wb, `cleaning_robot_analysis_${month}.xlsx`);
+    }
+
     function renderIssueHistory(month) {
       const body = document.getElementById('issueHistoryBody');
       const rows = buildIssueHistory(month);
@@ -1990,26 +2073,7 @@
     function renderNewIssueSummary(month) {
       const wrap = document.getElementById('newIssueSummary');
       if (!wrap) return;
-      const rows = buildIssueHistory(month)
-        .slice()
-        .sort((a, b) => String(b.issueDate || '').localeCompare(String(a.issueDate || '')))
-        .slice(0, 5);
-      if (!rows.length) {
-        wrap.innerHTML = '<div class="small muted">新規の故障・要望はありません。</div>';
-        return;
-      }
-      wrap.innerHTML = `
-        <div class="summary-jump-heading">新規の故障・要望</div>
-        <div class="summary-jump-list">${rows.slice(0, 4).map(r => {
-          const kind = r.category || (r.storeRequest ? '要望・意見' : '故障・不具合');
-          const detail = r.storeRequest || r.detail || r.comment || '内容未入力';
-          return `<button type="button" class="summary-jump-item" data-jump-issue-id="${r.issueId || ''}" data-jump-issue-month="${monthKey(r.issueDate) || month || ''}" title="${r.issueDate || ''} ${r.storeName || ''} ${kind} ${detail}">
-            <span class="summary-inline-store">${r.storeName || '店舗未設定'}</span>
-            <span class="summary-inline-kind">${kind}</span>
-            <span class="summary-inline-text">${detail}</span>
-          </button>`;
-        }).join('')}</div>
-      `;
+      wrap.innerHTML = '';
     }
 
     function clearJumpHighlights() {
@@ -2458,6 +2522,7 @@
     document.getElementById('robotImportBtn').addEventListener('click', handleRobotImport);
     document.getElementById('storeImportBtn').addEventListener('click', handleStoreImport);
     document.getElementById('manualIssueSaveBtn').addEventListener('click', handleManualIssueSave);
+    document.getElementById('exportIssueAnalysisBtn').addEventListener('click', exportIssueAnalysisWorkbook);
     document.getElementById('saveSettingsBtn').addEventListener('click', saveSettings);
     document.getElementById('saveStoreMasterBtn').addEventListener('click', saveStoreMaster);
     document.getElementById('clearDataBtn').addEventListener('click', clearAllData);
