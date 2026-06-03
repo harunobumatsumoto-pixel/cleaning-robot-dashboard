@@ -370,7 +370,7 @@
                 <th>店舗</th>
                 <th>業者/機種</th>
                 <th>損益分岐時間</th>
-                <th id="summaryTargetHeader">目標時間(120%)</th>
+                <th id="summaryTargetHeader">目標時間</th>
                 <th>実績時間</th>
                 <th>差異</th>
                 <th>達成率</th>
@@ -539,7 +539,7 @@
                 <th>業者/機種</th>
                 <th>月額費用</th>
                 <th>損益分岐時間</th>
-                <th id="financeTargetHeader">目標時間(120%)</th>
+                <th id="financeTargetHeader">目標時間</th>
                 <th>実績時間</th>
                 <th>人件費換算</th>
                 <th>損益差額</th>
@@ -1415,9 +1415,7 @@
     }
 
     function targetHeaderLabel() {
-      const value = targetPercentValue();
-      const display = Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/, '');
-      return `目標時間(${display}%)`;
+      return '目標時間';
     }
 
     function refreshTargetHeaders() {
