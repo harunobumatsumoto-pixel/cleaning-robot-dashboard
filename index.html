@@ -1659,7 +1659,7 @@
       if (cancelBtn) cancelBtn.classList.remove('hidden');
       if (result && !silent) result.textContent = `${issue.storeName} の ${issue.category} を編集中です。`;
       const wrap = document.getElementById('manualIssueCompletionWrap');
-      if (wrap) wrap.classList.toggle('hidden', (issue.category === '要望' || issue.category === '意見') || (issue.status !== '完了'));
+      if (wrap) wrap.classList.toggle('hidden', issue.status !== '完了');
     }
 
     function handleManualIssueSave() {
@@ -1669,7 +1669,7 @@
       const category = document.getElementById('manualIssueCategory').value;
       const isRequestLike = category === '要望' || category === '意見';
       const rawStatus = document.getElementById('manualIssueStatus').value;
-      const status = isRequestLike ? '受付' : rawStatus;
+      const status = rawStatus || (isRequestLike ? '受付' : '依頼済');
       const detail = document.getElementById('manualIssueDetail').value.trim();
       const comment = document.getElementById('manualIssueComment').value.trim();
       const storeRequest = ((document.getElementById('manualIssueStoreRequest') || {}).value || '').trim();
@@ -1728,7 +1728,13 @@
       const isRequestLike = category === '要望' || category === '意見';
       const currentValue = statusEl.value;
       const options = isRequestLike
-        ? [{ value: '受付', label: '受付' }]
+        ? [
+            { value: '受付', label: '受付' },
+            { value: '受領', label: '受領' },
+            { value: '既読', label: '既読' },
+            { value: '対応中', label: '対応中' },
+            { value: '完了', label: '完了' }
+          ]
         : [
             { value: '依頼済', label: '依頼済' },
             { value: '対応中', label: '対応中' },
@@ -1736,9 +1742,9 @@
           ];
       statusEl.innerHTML = options.map(opt => `<option value="${opt.value}">${opt.label}</option>`).join('');
       statusEl.value = options.some(opt => opt.value === currentValue) ? currentValue : options[0].value;
-      if (statusWrap) statusWrap.classList.toggle('hidden', isRequestLike);
-      if (detailGrid) detailGrid.classList.toggle('hidden', isRequestLike);
-      if (wrap) wrap.classList.toggle('hidden', isRequestLike || statusEl.value !== '完了');
+      if (statusWrap) statusWrap.classList.remove('hidden');
+      if (detailGrid) detailGrid.classList.remove('hidden');
+      if (wrap) wrap.classList.toggle('hidden', statusEl.value !== '完了');
     }
 
     document.addEventListener('change', function(e) {
@@ -1748,8 +1754,7 @@
       if (e.target && e.target.id === 'manualIssueStatus') {
         const wrap = document.getElementById('manualIssueCompletionWrap');
         const categoryEl = document.getElementById('manualIssueCategory');
-        const isRequestLike = categoryEl && (categoryEl.value === '要望' || categoryEl.value === '意見');
-        if (wrap) wrap.classList.toggle('hidden', isRequestLike || e.target.value !== '完了');
+        if (wrap) wrap.classList.toggle('hidden', e.target.value !== '完了');
       }
     });
 
@@ -1781,8 +1786,8 @@
     });
 
     function statusBadge(status) {
-      if (status === '達成' || status === '正常' || status === '問題なし' || status === '安定稼働') return '<span class="badge b-good">'+status+'</span>';
-      if (status === '受付' || status === 'あと少し' || status === '一部停止' || status === '機種未設定' || status === '経過観察' || /未実施/.test(status || '')) return '<span class="badge b-warn">'+status+'</span>';
+      if (status === '達成' || status === '正常' || status === '問題なし' || status === '安定稼働' || status === '既読' || status === '受領') return '<span class="badge b-good">'+status+'</span>';
+      if (status === '受付' || status === 'あと少し' || status === '一部停止' || status === '機種未設定' || status === '経過観察' || status === '対応中' || /未実施/.test(status || '')) return '<span class="badge b-warn">'+status+'</span>';
       return '<span class="badge b-bad">'+status+'</span>';
     }
 
@@ -1926,7 +1931,7 @@
         if (!acc[key]) acc[key] = { faultCount: 0, requestCount: 0, latestFaultId: '', latestRequestId: '', latestFaultMonth: '', latestRequestMonth: '' };
         const kind = issueKindFromCategory(row.category);
         if (kind === 'request') {
-          acc[key].requestCount += 1;
+          if (!['完了', '既読', '受領'].includes(String(row.status || '').trim())) acc[key].requestCount += 1;
           if (!acc[key].latestRequestId) acc[key].latestRequestId = row.issueId || '';
           if (!acc[key].latestRequestMonth) acc[key].latestRequestMonth = monthKey(row.issueDate) || month || '';
         } else {
@@ -2102,11 +2107,13 @@
         const signal = issueSignalMap[canonicalStoreName(s.store)] || { faultCount: 0, requestCount: 0 };
         const faultIndicator = signal.faultCount
           ? `<button type="button" class="issue-icon-btn fault" data-jump-issue-store="${s.store}" data-jump-issue-kind="fault" data-jump-issue-month="${month}" title="${s.store} の故障・不具合一覧へ移動">⚠ 故障${signal.faultCount}件</button>`
-          : `<span class="store-issue-pill fault">故障なし</span>`;
+          : '';
         const requestIndicator = signal.requestCount
           ? `<button type="button" class="issue-icon-btn request" data-jump-issue-store="${s.store}" data-jump-issue-kind="request" data-jump-issue-month="${month}" title="${s.store} の要望・意見一覧へ移動">💬 要望${signal.requestCount}件</button>`
-          : `<span class="store-issue-pill request">要望なし</span>`;
-        const issueSummary = `<div class="store-signal-row">${faultIndicator}${requestIndicator}</div>`;
+          : '';
+        const issueSummary = (faultIndicator || requestIndicator)
+          ? `<div class="store-signal-row">${faultIndicator}${requestIndicator}</div>`
+          : '';
         return `
         <div class="store-card ${monthAwareCardClass(s, month)}">
           <div class="store-card-header">
