@@ -564,6 +564,8 @@
         monthDays: 30.4,
         targetPercent: 120,
         ratioHours: 3,
+        ratioRobotMinutes: 30,
+        ratioHumanMinutes: 10,
         adminPassword: 'admin',
         fees: { DFA_Phantas: 47000, DFA_C40: 48000, AIM: 62000 },
         storeMachines: {
@@ -663,6 +665,8 @@
             monthDays: Number(mergedSettings.monthDays) || defaultState.settings.monthDays,
             targetPercent: Number(mergedSettings.targetPercent) || defaultState.settings.targetPercent,
             ratioHours: Number(mergedSettings.ratioHours) || defaultState.settings.ratioHours,
+            ratioRobotMinutes: Number(mergedSettings.ratioRobotMinutes) || 0,
+            ratioHumanMinutes: Number(mergedSettings.ratioHumanMinutes) || 0,
             adminPassword: String(mergedSettings.adminPassword || defaultState.settings.adminPassword || 'admin'),
             fees: {
               ...defaultState.settings.fees,
@@ -766,18 +770,32 @@
       return num(value, 1);
     }
     function pct(n) { return Number(n || 0).toLocaleString('ja-JP', { style: 'percent', minimumFractionDigits: 0, maximumFractionDigits: 0 }); }
-    function robotMinutesFromRatio(ratio) {
+    function ratioMinutesPair(ratio) {
       const safeRatio = Number(ratio) || 3;
-      if (Math.abs(safeRatio - Math.round(safeRatio)) < 0.0001) return Math.round(safeRatio * 10);
-      return Math.round(safeRatio * 60);
+      const preferredHumanMinutes = [10, 20, 30, 40, 50, 60];
+      for (const human of preferredHumanMinutes) {
+        const robot = safeRatio * human;
+        if (Math.abs(robot - Math.round(robot)) < 0.0001) {
+          return { robot: Math.round(robot), human };
+        }
+      }
+      for (let human = 1; human <= 60; human += 1) {
+        const robot = safeRatio * human;
+        if (Math.abs(robot - Math.round(robot)) < 0.0001) {
+          return { robot: Math.round(robot), human };
+        }
+      }
+      return { robot: Math.round(safeRatio * 10), human: 10 };
+    }
+    function robotMinutesFromRatio(ratio) {
+      return ratioMinutesPair(ratio).robot;
     }
     function humanMinutesFromRatio(ratio) {
-      const safeRatio = Number(ratio) || 3;
-      if (Math.abs(safeRatio - Math.round(safeRatio)) < 0.0001) return 10;
-      return 30;
+      return ratioMinutesPair(ratio).human;
     }
     function ratioLabel(ratio) {
-      return `人${num(humanMinutesFromRatio(ratio))}分＝ロボット${num(robotMinutesFromRatio(ratio))}分`;
+      const pair = ratioMinutesPair(ratio);
+      return `人${num(pair.human)}分＝ロボット${num(pair.robot)}分`;
     }
     function cardToneClass(summaryRow) {
       if (summaryRow.vendor === 'エイム') return 'aim-tone contract-cancelled';
@@ -2212,6 +2230,8 @@
       state.settings.monthDays = Number(state.settings.monthDays) || 30.4;
       state.settings.targetPercent = Number(state.settings.targetPercent) || 120;
       state.settings.ratioHours = Number(state.settings.ratioHours) || 3;
+      state.settings.ratioRobotMinutes = Number(state.settings.ratioRobotMinutes) || robotMinutesFromRatio(state.settings.ratioHours);
+      state.settings.ratioHumanMinutes = Number(state.settings.ratioHumanMinutes) || humanMinutesFromRatio(state.settings.ratioHours);
       state.settings.fees.DFA_Phantas = Number(state.settings.fees.DFA_Phantas) || 47000;
       state.settings.fees.DFA_C40 = Number(state.settings.fees.DFA_C40) || 48000;
       state.settings.fees.AIM = Number(state.settings.fees.AIM) || 62000;
@@ -2219,8 +2239,8 @@
       document.getElementById('hourlyCost').value = state.settings.hourlyCost;
       document.getElementById('monthDays').value = state.settings.monthDays;
       document.getElementById('targetPercent').value = targetPercentValue();
-      document.getElementById('ratioRobotMinutes').value = robotMinutesFromRatio(state.settings.ratioHours);
-      document.getElementById('ratioHumanMinutes').value = humanMinutesFromRatio(state.settings.ratioHours);
+      document.getElementById('ratioRobotMinutes').value = state.settings.ratioRobotMinutes;
+      document.getElementById('ratioHumanMinutes').value = state.settings.ratioHumanMinutes;
       document.getElementById('feePhantas').value = state.settings.fees.DFA_Phantas;
       document.getElementById('feeC40').value = state.settings.fees.DFA_C40;
       document.getElementById('feeAim').value = state.settings.fees.AIM;
@@ -2367,6 +2387,8 @@
       state.settings.targetPercent = Number(document.getElementById('targetPercent').value || 120);
       const ratioRobotMinutes = Number(document.getElementById('ratioRobotMinutes').value || 30);
       const ratioHumanMinutes = Number(document.getElementById('ratioHumanMinutes').value || 10);
+      state.settings.ratioRobotMinutes = ratioRobotMinutes;
+      state.settings.ratioHumanMinutes = ratioHumanMinutes;
       state.settings.ratioHours = ratioHumanMinutes > 0 ? (ratioRobotMinutes / ratioHumanMinutes) : 3;
       state.settings.fees.DFA_Phantas = Number(document.getElementById('feePhantas').value || 47000);
       state.settings.fees.DFA_C40 = Number(document.getElementById('feeC40').value || 48000);
