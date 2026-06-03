@@ -370,7 +370,7 @@
                 <th>店舗</th>
                 <th>業者/機種</th>
                 <th>損益分岐時間</th>
-                <th>目標時間(120%)</th>
+                <th id="summaryTargetHeader">目標時間(120%)</th>
                 <th>実績時間</th>
                 <th>差異</th>
                 <th>達成率</th>
@@ -474,6 +474,10 @@
               <input type="number" id="monthDays" step="0.1" />
             </div>
             <div>
+              <label class="small muted">目標率(%)</label>
+              <input type="number" id="targetPercent" step="0.1" min="0" />
+            </div>
+            <div>
               <label class="small muted">ロボット分</label>
               <input type="number" id="ratioRobotMinutes" step="1" min="1" />
             </div>
@@ -535,7 +539,7 @@
                 <th>業者/機種</th>
                 <th>月額費用</th>
                 <th>損益分岐時間</th>
-                <th>目標時間(120%)</th>
+                <th id="financeTargetHeader">目標時間(120%)</th>
                 <th>実績時間</th>
                 <th>人件費換算</th>
                 <th>損益差額</th>
@@ -558,6 +562,7 @@
       settings: {
         hourlyCost: 1200,
         monthDays: 30.4,
+        targetPercent: 120,
         ratioHours: 3,
         adminPassword: 'admin',
         fees: { DFA_Phantas: 47000, DFA_C40: 48000, AIM: 62000 },
@@ -656,6 +661,7 @@
             ...mergedSettings,
             hourlyCost: Number(mergedSettings.hourlyCost) || defaultState.settings.hourlyCost,
             monthDays: Number(mergedSettings.monthDays) || defaultState.settings.monthDays,
+            targetPercent: Number(mergedSettings.targetPercent) || defaultState.settings.targetPercent,
             ratioHours: Number(mergedSettings.ratioHours) || defaultState.settings.ratioHours,
             adminPassword: String(mergedSettings.adminPassword || defaultState.settings.adminPassword || 'admin'),
             fees: {
@@ -1403,12 +1409,31 @@
       return true;
     }
 
+    function targetPercentValue() {
+      const value = Number((state.settings || {}).targetPercent);
+      return Number.isFinite(value) && value > 0 ? value : 120;
+    }
+
+    function targetHeaderLabel() {
+      const value = targetPercentValue();
+      const display = Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/, '');
+      return `目標時間(${display}%)`;
+    }
+
+    function refreshTargetHeaders() {
+      const label = targetHeaderLabel();
+      const summaryHeader = document.getElementById('summaryTargetHeader');
+      const financeHeader = document.getElementById('financeTargetHeader');
+      if (summaryHeader) summaryHeader.textContent = label;
+      if (financeHeader) financeHeader.textContent = label;
+    }
+
     function requiredHours(storeName) {
       const fee = feeForStore(storeName);
       if (!fee) return { fee: 0, human: 0, robot: 0, targetRobot: 0, daily: 0, dailyBreakeven: 0, dailyTarget: 0 };
       const human = fee / state.settings.hourlyCost;
       const robot = human * state.settings.ratioHours;
-      const targetRobot = robot * 1.2;
+      const targetRobot = robot * (targetPercentValue() / 100);
       const dailyBreakeven = robot / state.settings.monthDays;
       const dailyTarget = targetRobot / state.settings.monthDays;
       return { fee, human, robot, targetRobot, daily: dailyTarget, dailyBreakeven, dailyTarget };
@@ -2048,6 +2073,7 @@
       document.getElementById('summaryNote').innerHTML = `表示指標は<strong>選択中の月ベース</strong>です。<strong>目標時間</strong>は設定済み条件と<strong>月${num(state.settings.monthDays, 1)}日</strong>の前提で自動計算しています。<strong>当月残日数</strong>は暦日ベースで計算します。費用情報は管理画面側のみに表示します。店舗カードの<strong>実績</strong>クリックで最下層の実績一覧へ、<strong>故障 / 要望アイコン</strong>クリックで履歴一覧へ移動できます。`;
       const maintenanceLogs = state.storeInputs.filter(i => monthKey(i.taskDate) === month);
       const maintenanceCompleted = maintenanceLogs.filter(i => (i.maintenanceJudge || i.status) === '問題なし' || i.status === '正常').length;
+      refreshTargetHeaders();
       document.getElementById('kpiStores').textContent = summary.length;
       document.getElementById('kpiRate').textContent = summary.length ? pct(summary.reduce((s,x)=>s+x.achievement,0)/summary.length) : '0%';
       document.getElementById('kpiShort').textContent = summary.filter(x => x.achievement < 1).length;
@@ -2113,6 +2139,7 @@
       renderOperationalInsights(month, summary);
       renderIssueHistory(month);
       renderNewIssueSummary(month);
+      refreshTargetHeaders();
       renderStoreMachineSettings();
       renderManualIssueForm();
     }
@@ -2185,6 +2212,7 @@
     function renderSettings() {
       state.settings.hourlyCost = Number(state.settings.hourlyCost) || 1200;
       state.settings.monthDays = Number(state.settings.monthDays) || 30.4;
+      state.settings.targetPercent = Number(state.settings.targetPercent) || 120;
       state.settings.ratioHours = Number(state.settings.ratioHours) || 3;
       state.settings.fees.DFA_Phantas = Number(state.settings.fees.DFA_Phantas) || 47000;
       state.settings.fees.DFA_C40 = Number(state.settings.fees.DFA_C40) || 48000;
@@ -2192,6 +2220,7 @@
       state.settings.adminPassword = String(state.settings.adminPassword || 'admin');
       document.getElementById('hourlyCost').value = state.settings.hourlyCost;
       document.getElementById('monthDays').value = state.settings.monthDays;
+      document.getElementById('targetPercent').value = targetPercentValue();
       document.getElementById('ratioRobotMinutes').value = robotMinutesFromRatio(state.settings.ratioHours);
       document.getElementById('ratioHumanMinutes').value = humanMinutesFromRatio(state.settings.ratioHours);
       document.getElementById('feePhantas').value = state.settings.fees.DFA_Phantas;
@@ -2337,6 +2366,7 @@
     function saveSettings() {
       state.settings.hourlyCost = Number(document.getElementById('hourlyCost').value || 1200);
       state.settings.monthDays = Number(document.getElementById('monthDays').value || 30.4);
+      state.settings.targetPercent = Number(document.getElementById('targetPercent').value || 120);
       const ratioRobotMinutes = Number(document.getElementById('ratioRobotMinutes').value || 30);
       const ratioHumanMinutes = Number(document.getElementById('ratioHumanMinutes').value || 10);
       state.settings.ratioHours = ratioHumanMinutes > 0 ? (ratioRobotMinutes / ratioHumanMinutes) : 3;
