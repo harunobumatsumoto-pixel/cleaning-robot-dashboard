@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -878,14 +879,36 @@
       ['阪神西宮', '阪神西宮店'],
       ['西宮', '阪神西宮店'],
       ['ジャンカラ阪神西宮店', '阪神西宮店'],
+      ['ジャンカラ阪神西宮', '阪神西宮店'],
       ['ジャンカラ阪神西宮1F', '阪神西宮店'],
       ['ジャンカラ阪神西宮2F', '阪神西宮店'],
+      ['ジャンカラ阪神西宮1階', '阪神西宮店'],
+      ['ジャンカラ阪神西宮2階', '阪神西宮店'],
       ['天王寺', '天王寺店'],
+      ['ジャンカラ天王寺店', '天王寺店'],
+      ['ジャンカラ天王寺', '天王寺店'],
+      ['ジャンカラ天王寺1F', '天王寺店'],
+      ['ジャンカラ天王寺2F', '天王寺店'],
+      ['ジャンカラ天王寺3F', '天王寺店'],
+      ['ジャンカラ天王寺4F', '天王寺店'],
+      ['ジャンカラ天王寺5F', '天王寺店'],
+      ['ジャンカラ天王寺1階', '天王寺店'],
+      ['ジャンカラ天王寺2階', '天王寺店'],
+      ['ジャンカラ天王寺3階', '天王寺店'],
+      ['ジャンカラ天王寺4階', '天王寺店'],
+      ['ジャンカラ天王寺5階', '天王寺店'],
       ['北九州店', 'ジ・アウトレット北九州店'],
       ['ジャンカラ ジ・アウトレット北九州店', 'ジ・アウトレット北九州店'],
       ['阪急中通', '阪急東中通店'],
       ['阪急中通店', '阪急東中通店'],
       ['阪急東中通', '阪急東中通店'],
+      ['東中通', '阪急東中通店'],
+      ['ジャンカラ阪急東中通', '阪急東中通店'],
+      ['ジャンカラ阪急東中通店', '阪急東中通店'],
+      ['ジャンカラ阪急東中通1F', '阪急東中通店'],
+      ['ジャンカラ阪急東中通2F', '阪急東中通店'],
+      ['ジャンカラ阪急東中通1階', '阪急東中通店'],
+      ['ジャンカラ阪急東中通2階', '阪急東中通店'],
       ['関大前', 'オールナイト関大前店'],
       ['オールナイト関大前店', 'オールナイト関大前店'],
       ['ｵｰﾙﾅｲﾄ関大前店', 'オールナイト関大前店']
@@ -1110,7 +1133,24 @@
 
     function isCompletedJobStatus(status) {
       const value = String(status || '').trim();
-      return !value || value === 'タスクの完了' || value === '清掃成功';
+      if (!value) return true;
+      if (/(失敗|異常|エラー|停止|中断|未完|キャンセル)/.test(value)) return false;
+      return /(タスクの完了|清掃成功|正常終了|マニュアル終了|完了|成功|終了)/.test(value);
+    }
+
+    function deriveStoreNameFromTaskReportRow(row) {
+      const rawCandidates = [
+        row['マップ名'],
+        row['タスク名'],
+        row['ロボット名'],
+        row['店舗'],
+        row['店舗名']
+      ].filter(v => String(v || '').trim());
+      for (const raw of rawCandidates) {
+        const canonical = canonicalStoreName(raw);
+        if (canonical && canonical !== '未設定店舗' && OFFICIAL_STORE_NAMES.includes(canonical)) return canonical;
+      }
+      return canonicalStoreName(rawCandidates[0] || '未設定店舗');
     }
 
     function fileToArrayBuffer(file) {
@@ -1229,7 +1269,7 @@
           taskId: `${r['S/N'] || ''}_${start}_${r['タスク名'] || ''}`,
           taskDate: dateKey(start),
           month: monthKey(start),
-          storeName: canonicalStoreName(r['ロボット名'] || r['タスク名'] || r['マップ名'] || '未設定店舗'),
+          storeName: deriveStoreNameFromTaskReportRow(r),
           floorName: r['マップ名'] || '',
           robotSerialNo: r['S/N'] || '',
           robotDisplayName: r['ロボット名'] || '',
@@ -2384,5 +2424,6 @@
       });
     }
   </script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v833ccba57c9e4d2798f2e76cebdd09a11778172276447" integrity="sha512-57MDmcccJXYtNnH+ZiBwzC4jb2rvgVCEokYN+L/nLlmO8rfYT/gIpW2A569iJ/3b+0UEasghjuZH/ma3wIs/EQ==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 </body>
 </html>
