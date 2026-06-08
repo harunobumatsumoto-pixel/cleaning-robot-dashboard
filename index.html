@@ -786,32 +786,18 @@
     ];
     const OFFICIAL_STORE_NAMES = [...new Set((defaultState.storeMaster || []).map(s => s.storeName))];
 
-    function normalizeStoreToken(name) {
-      return String(name || '')
-        .trim()
-        .replace(/\s+/g, '')
-        .replace(/^ジャンカラ[-ー‐−\s]*/, '')
-        .replace(/店$/, '')
-        .trim();
-    }
-
     function canonicalStoreName(name) {
       const raw = String(name || '').trim();
       if (!raw) return '未設定店舗';
-      const candidates = [...new Set([
-        raw,
-        raw.replace(/\s+/g, ''),
-        raw.replace(/^ジャンカラ[-ー‐−\s]*/, '').trim(),
-        raw.replace(/^ジャンカラ[-ー‐−\s]*/, '').replace(/\s+/g, '').trim(),
-        raw.replace(/^ジャンカラ[-ー‐−\s]*/, '').replace(/\s+/g, '').replace(/店$/, '').trim(),
-        raw.replace(/店$/, '').trim()
-      ].filter(Boolean))];
-      const candidateTokens = candidates.map(normalizeStoreToken);
-      const directOfficial = OFFICIAL_STORE_NAMES.find(store => candidateTokens.includes(normalizeStoreToken(store)));
-      if (directOfficial) return directOfficial;
-      const hit = STORE_ALIASES.find(([from]) => candidateTokens.includes(normalizeStoreToken(from)));
+      const simplified = raw
+        .replace(/^ジャンカラ[-\s]*/, '')
+        .replace(/店$/, '')
+        .trim();
+      const candidates = [raw, simplified].filter(Boolean);
+      const hit = STORE_ALIASES.find(([from]) => candidates.includes(from));
       if (hit) return hit[1];
-      return raw;
+      const directOfficial = OFFICIAL_STORE_NAMES.find(store => candidates.includes(store));
+      return directOfficial || raw;
     }
 
     state = normalizeState(loadState());
@@ -890,7 +876,6 @@
         },
         robotTasks: (currentState.robotTasks || []).map(t => ({ ...t, storeName: canonicalStoreName(t.storeName) })),
         storeInputs: (currentState.storeInputs || []).map(t => ({ ...t, storeName: canonicalStoreName(t.storeName) })),
-        manualIssues: (currentState.manualIssues || []).map(t => ({ ...t, storeName: canonicalStoreName(t.storeName) })),
         storeMaster: normalizedMaster.length ? normalizedMaster : defaultState.storeMaster
       };
     }
@@ -1864,11 +1849,9 @@
 
     function renderStoreMachineSettings() {
       const allStores = [...new Set(
-        (state.storeMaster || []).map(s => canonicalStoreName(s.storeName))
-          .concat(state.robotTasks.map(t => canonicalStoreName(t.storeName)))
-          .concat(state.storeInputs.map(s => canonicalStoreName(s.storeName)))
-          .concat((state.manualIssues || []).map(i => canonicalStoreName(i.storeName)))
-          .filter(Boolean)
+        (state.storeMaster || []).map(s => s.storeName)
+          .concat(state.robotTasks.map(t => t.storeName))
+          .concat(state.storeInputs.map(s => s.storeName))
       )].sort((a,b) => storeSortIndex(a) - storeSortIndex(b) || a.localeCompare(b,'ja'));
       const wrap = document.getElementById('storeMachineSettings');
       if (!allStores.length) { wrap.innerHTML = '<div class="muted small">店舗データがまだありません。</div>'; return; }
