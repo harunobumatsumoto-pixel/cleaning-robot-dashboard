@@ -140,15 +140,6 @@
     .summary-inline-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: #334155; }
     @media (max-width: 900px) { .summary-jump-list { grid-template-columns: 1fr; } }
     .issue-highlight td { background: #fff7df !important; transition: background 0.2s ease; }
-    .summary-row-highlight td { background: #eef6ff !important; transition: background 0.2s ease; }
-    .store-alerts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
-    .issue-icon-btn { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 999px; border: 1px solid transparent; font-size: 11px; font-weight: 800; background: #f8fbfe; color: #334155; cursor: pointer; }
-    .issue-icon-btn.fault { background: #fff1f2; border-color: #fecdd3; color: #b91c1c; }
-    .issue-icon-btn.request { background: #fff7ed; border-color: #fed7aa; color: #c2410c; }
-    .issue-icon-btn:hover { filter: brightness(0.98); }
-    .metric-line.metric-link { cursor: pointer; }
-    .metric-line.metric-link:hover { background: #eef6ff; border-bottom-color: rgba(59, 130, 246, 0.34); }
-    .metric-line.metric-link .metric-label::after { content: ' ↘'; font-size: 11px; color: #1d4ed8; }
     .maintenance-rate-only { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 150px; border: 1px solid rgba(59, 130, 246, 0.16); border-radius: 18px; background: linear-gradient(180deg, #f8fbff 0%, #eef6ff 100%); }
     .maintenance-rate-label { font-size: 13px; font-weight: 700; color: #475569; letter-spacing: 0.04em; }
     .maintenance-rate-value { margin-top: 10px; font-size: 38px; line-height: 1; font-weight: 900; color: #1d4ed8; }
@@ -237,6 +228,29 @@
           <div class="small muted">一覧の詳細確認前に、目標・達成率・実績・目標差異・目標まで残りを素早く見るサマリー表示です</div>
         </div>
         <div id="storeCards" class="store-grid"></div>
+      </div>
+
+      <div class="card" style="margin-top:16px;">
+        <h3>一覧</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>店舗</th>
+                <th>業者/機種</th>
+                <th>損益分岐時間</th>
+                <th>目標時間(120%)</th>
+                <th>実績時間</th>
+                <th>差異</th>
+                <th>達成率</th>
+                <th>当月残日数</th>
+                <th>達成まで必要時間</th>
+                <th>1日平均必要時間</th>
+              </tr>
+            </thead>
+            <tbody id="summaryTbody"></tbody>
+          </table>
+        </div>
       </div>
 
       <div class="grid grid-3" style="margin-top:16px;">
@@ -328,32 +342,6 @@
             <tbody id="issueHistoryBody"></tbody>
           </table>
         </div>
-      <div class="card" style="margin-top:16px;" id="performanceListSection">
-        <div class="section-title">
-          <h3>実績一覧</h3>
-          <div class="small muted">店舗カードの「実績」をクリックすると、この一覧の該当店舗へ移動します</div>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>店舗</th>
-                <th>業者/機種</th>
-                <th>損益分岐時間</th>
-                <th>目標時間(120%)</th>
-                <th>実績時間</th>
-                <th>差異</th>
-                <th>達成率</th>
-                <th>当月残日数</th>
-                <th>達成まで必要時間</th>
-                <th>1日平均必要時間</th>
-              </tr>
-            </thead>
-            <tbody id="summaryTbody"></tbody>
-          </table>
-        </div>
-      </div>
-
       </div>
     </div>
 
@@ -1387,16 +1375,6 @@
     });
 
     document.addEventListener('click', function(e) {
-      const performanceTrigger = e.target && e.target.closest ? e.target.closest('[data-jump-performance-store]') : null;
-      if (performanceTrigger) {
-        jumpToPerformance(performanceTrigger.dataset.jumpPerformanceStore || '', performanceTrigger.dataset.jumpPerformanceMonth || '');
-        return;
-      }
-      const issueListTrigger = e.target && e.target.closest ? e.target.closest('[data-jump-issue-store]') : null;
-      if (issueListTrigger) {
-        jumpToIssueList(issueListTrigger.dataset.jumpIssueStore || '', issueListTrigger.dataset.jumpIssueKind || '', issueListTrigger.dataset.jumpIssueMonth || '');
-        return;
-      }
       const trigger = e.target && e.target.closest ? e.target.closest('[data-jump-issue-id]') : null;
       if (!trigger) return;
       jumpToIssue(trigger.dataset.jumpIssueId || '', trigger.dataset.jumpIssueMonth || '');
@@ -1531,28 +1509,6 @@
       renderMaintenanceStatus('maintenanceStatus', maintenanceRows, maintenanceStats);
     }
 
-    function issueKindFromCategory(category) {
-      return category === '要望' || category === '意見' ? 'request' : 'fault';
-    }
-
-    function buildStoreIssueSignalMap(month) {
-      return buildIssueHistory(month).reduce((acc, row) => {
-        const key = canonicalStoreName(row.storeName);
-        if (!acc[key]) acc[key] = { faultCount: 0, requestCount: 0, latestFaultId: '', latestRequestId: '', latestFaultMonth: '', latestRequestMonth: '' };
-        const kind = issueKindFromCategory(row.category);
-        if (kind === 'request') {
-          acc[key].requestCount += 1;
-          if (!acc[key].latestRequestId) acc[key].latestRequestId = row.issueId || '';
-          if (!acc[key].latestRequestMonth) acc[key].latestRequestMonth = monthKey(row.issueDate) || month || '';
-        } else {
-          acc[key].faultCount += 1;
-          if (!acc[key].latestFaultId) acc[key].latestFaultId = row.issueId || '';
-          if (!acc[key].latestFaultMonth) acc[key].latestFaultMonth = monthKey(row.issueDate) || month || '';
-        }
-        return acc;
-      }, {});
-    }
-
     function buildIssueHistory(month) {
       // 故障履歴は手入力のみ（月フィルターなし：全期間対象）
       return (state.manualIssues || [])
@@ -1579,7 +1535,7 @@
       const body = document.getElementById('issueHistoryBody');
       const rows = buildIssueHistory(month);
       body.innerHTML = rows.map(r => `
-        <tr data-issue-id="${r.issueId || ''}" data-store-name="${r.storeName || ''}" data-issue-kind="${issueKindFromCategory(r.category)}">
+        <tr data-issue-id="${r.issueId || ''}">
           <td>${r.issueDate || '—'}</td>
           <td>${r.storeName || '—'}</td>
           <td>${r.category}</td>
@@ -1616,11 +1572,6 @@
       `;
     }
 
-    function clearJumpHighlights() {
-      document.querySelectorAll('.issue-highlight').forEach(row => row.classList.remove('issue-highlight'));
-      document.querySelectorAll('.summary-row-highlight').forEach(row => row.classList.remove('summary-row-highlight'));
-    }
-
     function jumpToIssue(issueId, issueMonth) {
       if (!issueId) return;
       const monthInput = document.getElementById('monthFilter');
@@ -1631,52 +1582,11 @@
       const issueSection = document.getElementById('issueHistorySection');
       if (issueSection) issueSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
       setTimeout(() => {
-        clearJumpHighlights();
         const row = document.querySelector(`[data-issue-id="${issueId}"]`);
         if (!row) return;
         row.classList.add('issue-highlight');
         row.scrollIntoView({ behavior: 'smooth', block: 'center' });
         setTimeout(() => row.classList.remove('issue-highlight'), 2500);
-      }, 150);
-    }
-
-    function jumpToIssueList(storeName, kind, issueMonth) {
-      const store = canonicalStoreName(storeName);
-      if (!store) return;
-      const monthInput = document.getElementById('monthFilter');
-      if (monthInput && issueMonth && monthInput.value !== issueMonth) {
-        monthInput.value = issueMonth;
-        renderDashboard();
-      }
-      const issueSection = document.getElementById('issueHistorySection');
-      if (issueSection) issueSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      setTimeout(() => {
-        clearJumpHighlights();
-        const rows = Array.from(document.querySelectorAll(`#issueHistoryBody tr[data-store-name="${store}"]`)).filter(row => !kind || row.dataset.issueKind === kind);
-        if (!rows.length) return;
-        rows.forEach(row => row.classList.add('issue-highlight'));
-        rows[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
-        setTimeout(() => rows.forEach(row => row.classList.remove('issue-highlight')), 2500);
-      }, 150);
-    }
-
-    function jumpToPerformance(storeName, displayMonth) {
-      const store = canonicalStoreName(storeName);
-      if (!store) return;
-      const monthInput = document.getElementById('monthFilter');
-      if (monthInput && displayMonth && monthInput.value !== displayMonth) {
-        monthInput.value = displayMonth;
-        renderDashboard();
-      }
-      const section = document.getElementById('performanceListSection');
-      if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      setTimeout(() => {
-        clearJumpHighlights();
-        const row = document.querySelector(`#summaryTbody tr[data-performance-store="${store}"]`);
-        if (!row) return;
-        row.classList.add('summary-row-highlight');
-        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        setTimeout(() => row.classList.remove('summary-row-highlight'), 2500);
       }, 150);
     }
 
@@ -1694,19 +1604,14 @@
       const adminFinanceMonthInput = document.getElementById('adminFinanceMonth');
       if (adminFinanceMonthInput && !adminFinanceMonthInput.value) adminFinanceMonthInput.value = month;
       const summary = aggregateMonthSummary(month);
-      const issueSignalMap = buildStoreIssueSignalMap(month);
-      document.getElementById('summaryNote').innerHTML = `表示指標は<strong>選択中の月ベース</strong>です。<strong>目標時間</strong>は設定済み条件と<strong>月${num(state.settings.monthDays, 1)}日</strong>の前提で自動計算しています。<strong>当月残日数</strong>は暦日ベースで計算します。費用情報は管理画面側のみに表示します。店舗カードの<strong>実績</strong>クリックで最下層の実績一覧へ、<strong>故障 / 要望アイコン</strong>クリックで履歴一覧へ移動できます。`;
+      document.getElementById('summaryNote').innerHTML = `表示指標は<strong>選択中の月ベース</strong>です。<strong>目標時間</strong>は設定済み条件と<strong>月${num(state.settings.monthDays, 1)}日</strong>の前提で自動計算しています。<strong>当月残日数</strong>は暦日ベースで計算します。費用情報は管理画面側のみに表示します。新規の故障・要望は下のサマリーからクリックすると履歴へ移動できます。`;
       document.getElementById('kpiStores').textContent = summary.length;
       document.getElementById('kpiRate').textContent = summary.length ? pct(summary.reduce((s,x)=>s+x.achievement,0)/summary.length) : '0%';
       document.getElementById('kpiShort').textContent = summary.filter(x => x.achievement < 1).length;
       document.getElementById('kpiMonth').textContent = month;
 
       const cards = document.getElementById('storeCards');
-      cards.innerHTML = summary.map(s => {
-        const signal = issueSignalMap[canonicalStoreName(s.store)] || { faultCount: 0, requestCount: 0 };
-        const faultButton = signal.faultCount ? `<button type="button" class="issue-icon-btn fault" data-jump-issue-store="${s.store}" data-jump-issue-kind="fault" data-jump-issue-month="${month}" title="${s.store} の故障・不具合一覧へ移動">⚠ 故障${signal.faultCount}</button>` : '';
-        const requestButton = signal.requestCount ? `<button type="button" class="issue-icon-btn request" data-jump-issue-store="${s.store}" data-jump-issue-kind="request" data-jump-issue-month="${month}" title="${s.store} の要望・意見一覧へ移動">💬 要望${signal.requestCount}</button>` : '';
-        return `
+      cards.innerHTML = summary.map(s => `
         <div class="store-card ${monthAwareCardClass(s, month)}">
           <div class="store-card-header">
             <div class="store-card-heading">
@@ -1716,25 +1621,23 @@
                 ${statusBadge(s.achievement >= 1 ? '達成' : s.achievement >= 0.8 ? 'あと少し' : '未達')}
               </div>
               <div class="store-title-row"><span class="store-order-inline">${storeOrderLabel(s.store)}</span><div class="store-title">${s.store}</div></div>
-              ${(faultButton || requestButton) ? `<div class="store-alerts">${faultButton}${requestButton}</div>` : ''}
             </div>
           </div>
           <div class="progress"><div style="width:${Math.min(s.achievement*100,100)}%"></div></div>
           <div class="store-metrics">
             <div class="metric-line ${s.machine ? 'neutral' : 'neutral'}"><span class="metric-label">目標</span><span class="metric-value">${s.machine ? num(s.monthlyTarget) + ' 時間' : '—'}</span></div>
             <div class="metric-line ${s.machine ? (achievementChipClass(s.achievement).split(' ').pop() || 'neutral') : 'neutral'}"><span class="metric-label">達成率</span><span class="metric-value">${s.machine ? pct(s.achievement) : '—'}</span></div>
-            <div class="metric-line metric-link ${s.machine ? 'neutral' : 'neutral'}" data-jump-performance-store="${s.store}" data-jump-performance-month="${month}" title="${s.store} の実績一覧へ移動"><span class="metric-label">実績</span><span class="metric-value">${s.machine ? num(s.monthlyActual) + ' 時間' : '—'}</span></div>
+            <div class="metric-line ${s.machine ? 'neutral' : 'neutral'}"><span class="metric-label">実績</span><span class="metric-value">${s.machine ? num(s.monthlyActual) + ' 時間' : '—'}</span></div>
             <div class="metric-line ${s.machine ? (gapChipClass(s.monthlyGap).split(' ').pop() || 'neutral') : 'neutral'}"><span class="metric-label">目標差異</span><span class="metric-value">${s.machine ? num(s.monthlyGap) + ' 時間' : '—'}</span></div>
             <div class="metric-line span-2 ${s.machine ? (remainingChipClass(s.remainingNeeded).split(' ').pop() || 'neutral') : 'neutral'}"><span class="metric-label">目標まで残り</span><span class="metric-value">${s.machine ? num(s.remainingNeeded) + ' 時間' : '—'}</span></div>
           </div>
           ${isContractCancelled(s.store, month) ? '<div class="contract-note">契約解除中 ／ DFA機器 導入検討中</div>' : ''}
         </div>
-      `;
-      }).join('') || '<div class="muted">データがありません。</div>';
+      `).join('') || '<div class="muted">データがありません。</div>';
 
       const tbody = document.getElementById('summaryTbody');
       tbody.innerHTML = summary.map(s => `
-        <tr data-performance-store="${s.store}">
+        <tr>
           <td>${s.store}</td>
           <td>${displayVendorLabel(s) ? displayVendorLabel(s) + ' / ' : ''}${displayMachineLabel(s)}</td>
           <td class="right">${s.machine ? num(s.breakevenHours) : '—'}</td>
