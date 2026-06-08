@@ -700,15 +700,12 @@
       return summaryRow.vendor || '未設定';
     }
     function displayMachineLabel(summaryRow) {
-      const machine = normalizeMachineValue(summaryRow.machine);
-      if (machine === 'Phantas') return 'Phantas';
-      if (machine === 'C40') return 'C40';
-      return machine || '未設定';
+      if (summaryRow.machine === 'AIM機') return 'Phantas';
+      return summaryRow.machine || '未設定';
     }
     function machineBadgeClass(summaryRow) {
-      const machine = normalizeMachineValue(summaryRow.machine);
-      if (machine === 'Phantas') return 'brand-badge machine-phantas';
-      if (machine === 'C40') return 'brand-badge machine-c40';
+      if (summaryRow.machine === 'AIM機' || summaryRow.machine === 'Phantas') return 'brand-badge machine-phantas';
+      if (summaryRow.machine === 'C40') return 'brand-badge machine-c40';
       return 'brand-badge';
     }
     function gapChipClass(value) {
@@ -788,53 +785,6 @@
       ['ｵｰﾙﾅｲﾄ関大前店', 'オールナイト関大前店']
     ];
     const OFFICIAL_STORE_NAMES = [...new Set((defaultState.storeMaster || []).map(s => s.storeName))];
-    const FIXED_C40_STORE_SETTINGS = {
-      'オールナイト関大前店': { vendor: 'DFA', machine: 'C40', fee: 48000 },
-      '十三本町店': { vendor: 'DFA', machine: 'C40', fee: 48000 },
-      'ジ・アウトレット北九州店': { vendor: 'DFA', machine: 'C40', fee: 48000 }
-    };
-
-    function normalizeMachineValue(value) {
-      const raw = String(value || '').trim();
-      if (!raw) return '';
-      const token = raw.replace(/\s+/g, '').toUpperCase();
-      if (token === 'C4' || token === 'C40') return 'C40';
-      if (token === 'PH' || token === 'PHANTAS' || token === 'ＡＩＭ機') return 'Phantas';
-      if (raw === 'AIM機') return 'Phantas';
-      return raw;
-    }
-
-    function normalizeVendorValue(value) {
-      const raw = String(value || '').trim();
-      if (!raw) return '';
-      if (raw === 'DF') return 'DFA';
-      return raw;
-    }
-
-    function applyFixedStoreSettings(targetState) {
-      if (!targetState || !targetState.settings) return targetState;
-      targetState.settings.storeMachines = targetState.settings.storeMachines || {};
-      targetState.settings.storeFees = targetState.settings.storeFees || {};
-      targetState.settings.storeVendors = targetState.settings.storeVendors || {};
-      targetState.settings.storeSettings = targetState.settings.storeSettings || {};
-      Object.entries(FIXED_C40_STORE_SETTINGS).forEach(([store, fixed]) => {
-        targetState.settings.storeMachines[store] = fixed.machine;
-        targetState.settings.storeFees[store] = fixed.fee;
-        targetState.settings.storeVendors[store] = fixed.vendor;
-        const current = targetState.settings.storeSettings[store] || {};
-        targetState.settings.storeSettings[store] = {
-          contractStatus: '契約中',
-          cancelFrom: '',
-          visible: true,
-          displayMode: 'show',
-          ...current,
-          vendor: fixed.vendor,
-          machine: fixed.machine,
-          fee: fixed.fee
-        };
-      });
-      return targetState;
-    }
 
     function normalizeStoreToken(name) {
       return String(name || '')
@@ -868,15 +818,15 @@
 
     function normalizeState(currentState) {
       const normalizedMachines = Object.entries((currentState.settings || {}).storeMachines || {}).reduce((acc, [key, value]) => {
-        acc[canonicalStoreName(key)] = normalizeMachineValue(value);
+        acc[canonicalStoreName(key)] = value;
         return acc;
       }, {});
       const normalizedFees = Object.entries((currentState.settings || {}).storeFees || {}).reduce((acc, [key, value]) => {
-        acc[canonicalStoreName(key)] = Number(value || 0);
+        acc[canonicalStoreName(key)] = value;
         return acc;
       }, {});
       const normalizedVendors = Object.entries((currentState.settings || {}).storeVendors || {}).reduce((acc, [key, value]) => {
-        acc[canonicalStoreName(key)] = normalizeVendorValue(value);
+        acc[canonicalStoreName(key)] = value;
         return acc;
       }, {});
 
@@ -889,7 +839,7 @@
         normalizedMaster.push({ ...item, storeName });
       });
 
-      const normalizedState = {
+      return {
         ...currentState,
         settings: {
           ...(currentState.settings || {}),
@@ -932,9 +882,6 @@
             }, {}),
             ...Object.entries((currentState.settings || {}).storeSettings || {}).reduce((acc, [k, v]) => {
               const merged = { contractStatus:'契約中', cancelFrom:'', visible:true, displayMode:'show', ...(v||{}) };
-              merged.vendor = normalizeVendorValue(merged.vendor);
-              merged.machine = normalizeMachineValue(merged.machine);
-              merged.fee = Number(merged.fee || 0);
               if (!merged.displayMode) merged.displayMode = merged.visible === false ? 'hidden' : (merged.contractStatus === '契約解除' && merged.cancelFrom ? 'hide_after_cancel' : 'show');
               acc[canonicalStoreName(k)] = merged;
               return acc;
@@ -946,7 +893,6 @@
         manualIssues: (currentState.manualIssues || []).map(t => ({ ...t, storeName: canonicalStoreName(t.storeName) })),
         storeMaster: normalizedMaster.length ? normalizedMaster : defaultState.storeMaster
       };
-      return applyFixedStoreSettings(normalizedState);
     }
 
     function toDate(v) {
@@ -1961,8 +1907,8 @@
         const store = row.getAttribute('data-store');
         const key = canonicalStoreName(store);
         const get = (field) => row.querySelector(`[data-field="${field}"]`);
-        const vendor = normalizeVendorValue((get('vendor').value || '').trim());
-        const machine = normalizeMachineValue((get('machine').value || '').trim());
+        const vendor = (get('vendor').value || '').trim();
+        const machine = (get('machine').value || '').trim();
         const fee = Number(get('fee').value || 0);
         const contractStatus = get('contractStatus').value;
         const cancelFrom = (get('cancelFrom').value || '').trim();
@@ -1974,7 +1920,6 @@
         if (machine) state.settings.storeMachines[key] = machine;
         if (fee) state.settings.storeFees[key] = fee;
       });
-      state = applyFixedStoreSettings(normalizeState(state));
       saveState();
       renderAll();
       document.getElementById('storeMasterSaveResult').textContent = '保存しました';
@@ -2073,11 +2018,6 @@
         { sourceFile:'sample', sourceType:'maintenance-history', taskDate:'2026-05-20', storeName:'ジ・アウトレット北九州店', status:'正常', reason:'', comment:'', reclean:'', additionalMinutes:0, manualRuntimeHours:0, maintenanceJudge:'問題なし', maintenanceNote:'', maintenanceItems:'', maintenanceSheet:'北九州' }
       ];
       state.manualIssues = [
-        { issueId:'sample-issue-7', issueDate:'2026-06-02', storeName:'十三本町店', category:'要確認', status:'依頼済', detail:'ルーム（46.15.16.34.35.36）未設定', comment:'6月3日 7時 残ルーム設定予定', storeRequest:'', source:'手入力' },
-        { issueId:'sample-issue-6', issueDate:'2026-06-02', storeName:'阪急東中通店', category:'要確認', status:'依頼済', detail:'マイク干渉', comment:'対応策検討中 部屋利用がないフロアや時間帯に運用', storeRequest:'', source:'手入力' },
-        { issueId:'sample-issue-5', issueDate:'2026-06-02', storeName:'天王寺店', category:'要確認', status:'依頼済', detail:'420ルームのみ未設定＋マイク干渉あり', comment:'6月3日 15時420設定 マイク干渉対応策検討中', storeRequest:'', source:'手入力' },
-        { issueId:'sample-issue-4', issueDate:'2026-06-02', storeName:'阪神西宮店', category:'要確認', status:'依頼済', detail:'ルームのマッピングがまだ', comment:'6月4日 0時より残マッピング開始予定', storeRequest:'', source:'手入力' },
-        { issueId:'sample-issue-3', issueDate:'2026-06-02', storeName:'オールナイト関大前店', category:'要確認', status:'依頼済', detail:'ルーム（5.12.18.19.20）未設定（マッピング）', comment:'6月3日 3時残ルームのマッピング予定', storeRequest:'', source:'手入力' },
         { issueId:'sample-issue-2', issueDate:'2026-06-02', storeName:'十三本町店', category:'意見', status:'受付', detail:'詳細の全ては確認取れておりませんが一部の意見を共有しておきます。', comment:'', storeRequest:'・汚れが取れきれず2度手間になる。 / ・角などでカーブする際に本体がすれているのか逆に汚してしまう。', source:'手入力' },
         { issueId:'sample-issue-1', issueDate:'2026-05-21', storeName:'阪神西宮店', category:'故障', status:'対応中', detail:'充電エラーで途中停止', comment:'バッテリー接点を確認中', storeRequest:'夜間帯に停止が増えているため原因確認を希望', source:'手入力' }
       ];
