@@ -1105,12 +1105,14 @@
     function aggregateMonthSummary(month, period) {
       const monthRobotTasks = state.robotTasks.filter(t => t.month === month);
       const monthStoreInputs = state.storeInputs.filter(s => monthKey(s.taskDate) === month);
-      const masterStores = (state.storeMaster || []).map(s => s.storeName);
-      const stores = [...new Set([...masterStores, ...monthRobotTasks.map(t => t.storeName), ...monthStoreInputs.map(s => s.storeName)])]
+      const periodStores = [...new Set([
+        ...monthRobotTasks.filter(t => inDateRange(t.taskDate, period.start, period.end)).map(t => t.storeName),
+        ...monthStoreInputs.filter(s => inDateRange(s.taskDate, period.start, period.end)).map(s => s.storeName)
+      ])]
         .map(store => canonicalStoreName(store))
         .filter(store => machineForStore(store))
         .filter((store, idx, arr) => arr.indexOf(store) === idx);
-      const rows = stores.map(store => {
+      const rows = periodStores.map(store => {
         const machine = machineForStore(store);
         const vendor = vendorForStore(store);
         const target = requiredHours(store);
@@ -1496,7 +1498,7 @@
       }
       const period = selectedPeriod(month);
       const summary = aggregateMonthSummary(month, period);
-      document.getElementById('summaryNote').innerHTML = `表示指標は <strong>${rangeLabel(period.start, period.end)}</strong> の期間ベースです。目標時間は <strong>${ratioLabel(state.settings.ratioHours)}</strong>、<strong>${num(diffDaysInclusive(period.start, period.end))}日分</strong> を日割りで計算しています。カード内は期間目標・期間実績に合わせ、理由件数の増減と故障継続の有無、曜日傾向まで確認できます。`;
+      document.getElementById('summaryNote').innerHTML = `表示指標は <strong>${rangeLabel(period.start, period.end)}</strong> の期間ベースです。目標時間は <strong>${ratioLabel(state.settings.ratioHours)}</strong>、<strong>${num(diffDaysInclusive(period.start, period.end))}日分</strong> を日割りで計算しています。カード内は期間目標・期間実績に合わせ、理由件数の増減と故障継続の有無、曜日傾向まで確認できます。<strong>選択期間に記録がある店舗のみ表示</strong>します。`;
       document.getElementById('kpiStores').textContent = summary.length;
       document.getElementById('kpiRate').textContent = summary.length ? pct(summary.reduce((s,x)=>s+x.achievement,0)/summary.length) : '0%';
       document.getElementById('kpiShort').textContent = summary.filter(x => x.achievement < 1).length;
